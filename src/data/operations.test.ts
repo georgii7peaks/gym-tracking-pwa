@@ -1,0 +1,150 @@
+// Integration tests for the operations layer over the shared repository. The
+// Dexie singleton is cleared between tests by the global setup (setup.ts).
+import { describe, it, expect } from 'vitest'
+import { repository as repo } from './dexie-repository'
+import {
+  addRoutineExercise,
+  addSet,
+  createRoutineDay,
+  deleteRoutineDay,
+  deleteSession,
+  getPreviousSet,
+  renameRoutineExercise,
+  reorderRoutineDays,
+  startSessionFromDay,
+} from './operations'
+import type { ExerciseLog } from '@/domain/types'
+
+async function firstLog(sessionId: string): Promise<ExerciseLog> {
+  const logs = await repo.exerciseLogs.bySession(sessionId)
+  return logs[0]
+}
+
+describe('operations — routine editing', () => {
+  it('rejects a blank day name (nothing saved)', async () => {
+    expect(await createRoutineDay('   ')).toBeNull()
+    expect(await repo.routineDays.list()).toHaveLength(0)
+  })
+
+  it('appends new days and reorders to a contiguous sequence', async () => {
+    const a = await createRoutineDay('A')
+    const b = await createRoutineDay('B')
+    const c = await createRoutineDay('C')
+    expect([a, b, c].every(Boolean)).toBe(true)
+
+    // Move C to the front.
+    await reorderRoutineDays([c!.id, a!.id, b!.id])
+    const ordered = await repo.routineDays.listOrdered()
+    expect(ordered.map((d) => d.name)).toEqual(['C', 'A', 'B'])
+    expect(ordered.map((d) => d.order)).toEqual([0, 1, 2])
+  })
+
+  it('cascade-deletes a day and its exercises', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press')
+    await addRoutineExercise(day!.id, 'Lat pulldown')
+
+    await deleteRoutineDay(day!.id)
+
+    expect(await repo.routineDays.get(day!.id)).toBeUndefined()
+    expect(await repo.routineExercises.byDay(day!.id)).toHaveLength(0)
+  })
+})
+
+describe('operations — Start a Session (§6.1) + snapshot independence', () => {
+  it('copies day + exercises and stays independent of later routine edits', async () => {
+    const day = await createRoutineDay('Day A')
+    const ex = await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+
+    const session = await startSessionFromDay(day!.id)
+    expect(session).not.toBeNull()
+
+    const log = await firstLog(session!.id)
+    expect(session!.name).toBe('Day A')
+    expect(log.name).toBe('Bench press')
+    expect(log.metric).toBe('weightReps')
+    expect(log.order).toBe(0)
+
+    // Editing the routine afterwards must not change the started session (§2).
+    await renameRoutineExercise(ex!.id, 'Incline press')
+    expect((await firstLog(session!.id)).name).toBe('Bench press')
+  })
+
+  it('copies the per-exercise weight unit into the log', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps', 'lb')
+    const session = await startSessionFromDay(day!.id)
+    expect((await firstLog(session!.id)).weightUnit).toBe('lb')
+  })
+})
+
+describe('operations — set logging (§3.4)', () => {
+  it('allows weight 0, clamps reps to >= 1, stores canonical kg', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Squat', 'weightReps')
+    const session = await startSessionFromDay(day!.id)
+    const log = await firstLog(session!.id)
+
+    const created = await addSet(log, { weightKg: 0, reps: 0, durationSec: 0 })
+    expect(created).not.toBeNull()
+    expect(created!.weightKg).toBe(0)
+    expect(created!.reps).toBe(1) // clamped up from 0
+    expect(created!.exerciseName).toBe('Squat')
+  })
+
+  it('rejects a non-positive duration set', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Plank', 'duration')
+    const session = await startSessionFromDay(day!.id)
+    const log = await firstLog(session!.id)
+
+    expect(await addSet(log, { weightKg: 0, reps: 0, durationSec: 0 })).toBeNull()
+    expect(await addSet(log, { weightKg: 0, reps: 0, durationSec: 45 })).not.toBeNull()
+    expect(await repo.sets.byLog(log.id)).toHaveLength(1)
+  })
+})
+
+describe('operations — Previous Set (§6.2) end-to-end', () => {
+  it('finds prior history and excludes current-session sets', async () => {
+    // A prior set logged long ago, under the same exercise name.
+    await repo.sets.put({
+      id: 'prior',
+      exerciseLogId: 'old-log',
+      weightKg: 60,
+      reps: 8,
+      durationSec: 0,
+      order: 0,
+      exerciseName: 'Bench press',
+      createdAt: 1000, // far before any session started now
+      updatedAt: 1000,
+    })
+
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+    const session = await startSessionFromDay(day!.id)
+    const log = await firstLog(session!.id)
+
+    const previous = await getPreviousSet(log, session!)
+    expect(previous?.id).toBe('prior')
+
+    // A set logged during the current session must not become "previous".
+    await addSet(log, { weightKg: 70, reps: 5, durationSec: 0 })
+    expect((await getPreviousSet(log, session!))?.id).toBe('prior')
+  })
+})
+
+describe('operations — cascade delete a session', () => {
+  it('removes the session, its logs and their sets', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+    const session = await startSessionFromDay(day!.id)
+    const log = await firstLog(session!.id)
+    await addSet(log, { weightKg: 50, reps: 8, durationSec: 0 })
+
+    await deleteSession(session!.id)
+
+    expect(await repo.workoutSessions.get(session!.id)).toBeUndefined()
+    expect(await repo.exerciseLogs.bySession(session!.id)).toHaveLength(0)
+    expect(await repo.sets.byLog(log.id)).toHaveLength(0)
+  })
+})

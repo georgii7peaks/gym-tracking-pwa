@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+/* Dark mode via a class on <html>, toggled by ThemeProvider. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * RetroUI-flavoured design tokens (IMPLEMENTATION_PLAN.md §1.6): bold black
+ * borders, a hard offset shadow, and a yellow primary. Semantic CSS variables
+ * are defined per scheme, then mapped into Tailwind's theme below.
+ */
+:root {
+  --background: #fdfcf7;
+  --foreground: #16150f;
+  --card: #ffffff;
+  --card-foreground: #16150f;
+  --muted: #f1efe4;
+  --muted-foreground: #6b6a5e;
+  --primary: #ffdb33;
+  --primary-foreground: #16150f;
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --border: #16150f;
+  --ring: #16150f;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --success: #30a46c;
+  --warning: #f5a524;
+}
+
+.dark {
+  --background: #17160f;
+  --foreground: #f5f3e7;
+  --card: #23221a;
+  --card-foreground: #f5f3e7;
+  --muted: #2c2a20;
+  --muted-foreground: #a7a493;
+  --primary: #ffdb33;
+  --primary-foreground: #16150f;
+  --accent: #60a5fa;
+  --accent-foreground: #16150f;
+  --border: #f5f3e7;
+  --ring: #f5f3e7;
+  --destructive: #ff6369;
+  --destructive-foreground: #16150f;
+  --success: #3dd68c;
+  --warning: #ffca62;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  /* Sharp (square) corners — the neobrutalist RetroUI look. */
+  --radius-retro: 0rem;
+  --shadow-retro: 3px 3px 0 0 var(--border);
+  --shadow-retro-sm: 2px 2px 0 0 var(--border);
+  --shadow-retro-lg: 5px 5px 0 0 var(--border);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Prevent iOS text auto-zoom & rubber-band affecting the app shell. */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+
+  /* Respect users who ask for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
