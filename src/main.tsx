@@ -19,6 +19,9 @@ import '@fontsource/manrope/800.css'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/700.css'
 import './index.css'
+// Eagerly attach the beforeinstallprompt listener before first paint — Chrome
+// can fire it as soon as installability criteria are met (see installPrompt.ts).
+import './lib/installPrompt'
 import { App } from './App'
 
 const rootElement = document.getElementById('root')

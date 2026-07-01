@@ -2,17 +2,21 @@
 // alongside Google auth.
 import { useState } from 'react'
 import { Screen } from '@/components/Screen'
+import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useTheme } from '@/theme/ThemeProvider'
 import { getPreference, setPreference } from '@/prefs/preferences'
 import type { Language, ThemePreference, WeightUnit } from '@/prefs/preferences'
+import { isIOS, isStandalone, promptInstall, useCanInstall } from '@/lib/installPrompt'
 
 export function SettingsPage() {
   const { t, language, setLanguage } = useI18n()
   const { theme, setTheme } = useTheme()
   const [weightUnit, setWeightUnitState] = useState<WeightUnit>(() => getPreference('weightUnit'))
+  const canInstall = useCanInstall()
+  const showIOSInstallHint = !canInstall && isIOS() && !isStandalone()
 
   const setWeightUnit = (unit: WeightUnit) => {
     setWeightUnitState(unit)
@@ -74,6 +78,23 @@ export function SettingsPage() {
             </CardBody>
           </Card>
         </section>
+
+        {(canInstall || showIOSInstallHint) && (
+          <section className="flex flex-col gap-2">
+            <h2 className="kicker">{t('settings.install')}</h2>
+            <Card>
+              <CardBody>
+                {canInstall ? (
+                  <Button className="w-full" onClick={() => promptInstall()}>
+                    {t('settings.install.action')}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('settings.install.iosHint')}</p>
+                )}
+              </CardBody>
+            </Card>
+          </section>
+        )}
 
         <p className="text-sm text-muted-foreground">{t('settings.morePhase2')}</p>
       </div>

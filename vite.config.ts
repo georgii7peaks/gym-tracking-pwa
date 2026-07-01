@@ -15,12 +15,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': a waiting SW does NOT take over silently — the app decides
+      // when, via useRegisterSW()'s onNeedRefresh + updateServiceWorker()
+      // (see UpdateBanner.tsx), so users see a "new version, reload" toast
+      // instead of an unannounced reload/state loss mid-session.
+      registerType: 'prompt',
       injectRegister: 'auto',
       // The whole app shell is precached so it launches with zero network
       // (ADR-0002: 100% functional offline after first load).
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },

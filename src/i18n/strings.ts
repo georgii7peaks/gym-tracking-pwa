@@ -162,6 +162,18 @@ export const catalog = {
   'theme.system': { ru: 'Системная', en: 'System' },
   'theme.light': { ru: 'Светлая', en: 'Light' },
   'theme.dark': { ru: 'Тёмная', en: 'Dark' },
+
+  // ── PWA: service-worker update banner (Phase 3) ─────────────────────────────
+  'update.available': { ru: 'Доступна новая версия приложения', en: 'A new version is available' },
+  'update.reload': { ru: 'Обновить', en: 'Reload' },
+
+  // ── PWA: install affordance (Phase 3, Settings) ─────────────────────────────
+  'settings.install': { ru: 'Установка', en: 'Install' },
+  'settings.install.action': { ru: 'Установить приложение', en: 'Install app' },
+  'settings.install.iosHint': {
+    ru: 'На iPhone/iPad: нажмите «Поделиться», затем «На экран «Домой»».',
+    en: 'On iPhone/iPad: tap Share, then "Add to Home Screen".',
+  },
 } satisfies Record<string, Entry>
 
 export type StringKey = keyof typeof catalog

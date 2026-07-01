@@ -4,6 +4,7 @@
 import { Outlet } from 'react-router-dom'
 import { TabBar } from './TabBar'
 import { StarterProgramPrompt } from '../routes/StarterProgramPrompt'
+import { UpdateBanner } from '@/components/ui/UpdateBanner'
 
 export function AppLayout() {
   return (
@@ -13,6 +14,7 @@ export function AppLayout() {
       </main>
       <TabBar />
       <StarterProgramPrompt />
+      <UpdateBanner />
     </div>
   )
 }
