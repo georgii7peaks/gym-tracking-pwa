@@ -1,6 +1,9 @@
 // Root layout: a scrollable content area above a persistent bottom tab bar.
+// Mounts once for the app's lifetime, so it's also where the one-time Starter
+// Program prompt (§5.9) lives — its launch check must run regardless of tab.
 import { Outlet } from 'react-router-dom'
 import { TabBar } from './TabBar'
+import { StarterProgramPrompt } from '../routes/StarterProgramPrompt'
 
 export function AppLayout() {
   return (
@@ -9,6 +12,7 @@ export function AppLayout() {
         <Outlet />
       </main>
       <TabBar />
+      <StarterProgramPrompt />
     </div>
   )
 }

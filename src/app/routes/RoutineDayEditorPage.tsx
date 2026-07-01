@@ -26,12 +26,14 @@ import {
 import { moveItem } from '@/domain/ordering'
 import type { Metric, RoutineExercise } from '@/domain/types'
 import type { WeightUnit } from '@/prefs/preferences'
+import { useWeightUnit } from '@/prefs/useWeightUnit'
 import { haptics } from '@/lib/haptics'
 
 export function RoutineDayEditorPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { dayId = '' } = useParams()
+  const { unit: defaultWeightUnit } = useWeightUnit()
 
   const { data, loading } = useLiveData(() => getRoutineDayEditor(dayId), [dayId])
   const day = data?.day
@@ -120,7 +122,7 @@ export function RoutineDayEditorPage() {
         placeholder={t('dayEditor.exerciseName')}
         confirmLabel={t('common.add')}
         onSubmit={async (value) => {
-          await addRoutineExercise(day.id, value)
+          await addRoutineExercise(day.id, value, 'weightReps', defaultWeightUnit)
           setAddOpen(false)
         }}
         onCancel={() => setAddOpen(false)}

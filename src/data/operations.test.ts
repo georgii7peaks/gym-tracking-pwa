@@ -5,6 +5,7 @@ import { repository as repo } from './dexie-repository'
 import {
   addRoutineExercise,
   addSet,
+  applyStarterProgram,
   createRoutineDay,
   deleteRoutineDay,
   deleteSession,
@@ -13,6 +14,7 @@ import {
   reorderRoutineDays,
   startSessionFromDay,
 } from './operations'
+import { STARTER_PROGRAMS } from '@/domain/starterPrograms'
 import type { ExerciseLog } from '@/domain/types'
 
 async function firstLog(sessionId: string): Promise<ExerciseLog> {
@@ -146,6 +148,42 @@ describe('operations — cascade delete a session', () => {
     expect(await repo.workoutSessions.get(session!.id)).toBeUndefined()
     expect(await repo.exerciseLogs.bySession(session!.id)).toHaveLength(0)
     expect(await repo.sets.byLog(log.id)).toHaveLength(0)
+  })
+})
+
+describe('operations — apply a Starter Program (§10, Appendix B)', () => {
+  it('inserts the program’s days and exercises, in order, named in the given language', async () => {
+    const fatLoss = STARTER_PROGRAMS.find((p) => p.id === 'fatLoss')!
+
+    await applyStarterProgram(fatLoss, 'ru')
+
+    const days = await repo.routineDays.listOrdered()
+    expect(days.map((d) => d.name)).toEqual(['Полное тело', 'Полное тело'])
+    expect(days.map((d) => d.order)).toEqual([0, 1])
+
+    const dayAExercises = await repo.routineExercises.byDay(days[0].id)
+    expect(dayAExercises.map((e) => e.name)).toEqual([
+      'Велотренажёр',
+      'Приседания с гантелями',
+      'Тяга верхнего блока',
+      'Жим гантелей на наклонной',
+      'Румынская тяга с гантелями',
+      'Планка',
+    ])
+    expect(dayAExercises.map((e) => e.order)).toEqual([0, 1, 2, 3, 4, 5])
+    expect(dayAExercises[0].metric).toBe('duration') // Велотренажёр
+    expect(dayAExercises[1].metric).toBe('weightReps') // Приседания с гантелями
+  })
+
+  it('appends after any existing days rather than replacing them', async () => {
+    await createRoutineDay('My own day')
+    const strength = STARTER_PROGRAMS.find((p) => p.id === 'strength')!
+
+    await applyStarterProgram(strength, 'en')
+
+    const days = await repo.routineDays.listOrdered()
+    expect(days.map((d) => d.name)).toEqual(['My own day', 'Squat & press', 'Deadlift & overhead'])
+    expect(days.map((d) => d.order)).toEqual([0, 1, 2])
   })
 })
 

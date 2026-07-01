@@ -184,14 +184,28 @@ export const catalog = {
     en: 'Last time: {duration}',
   },
 
-  // ── Settings (Phase 0 wired language + theme; §5.8 completed in Phase 2) ─────
+  // ── Starter program prompt (§5.9, §10) ──────────────────────────────────────
+  'starterPrompt.title': { ru: 'Готовая программа', en: 'Starter program' },
+  'starterPrompt.body': {
+    ru: 'Можно начать с одной из готовых программ или пропустить и собрать свою.',
+    en: 'Pick one of the built-in programs to start with, or skip and build your own.',
+  },
+  'starterPrompt.skip': { ru: 'Пропустить', en: 'Skip' },
+  'starterPrompt.daysCount': { ru: '{n} дня тренировок', en: '{n} training days' },
+
+  // ── Settings (§5.8) ──────────────────────────────────────────────────────────
   'settings.title': { ru: 'Настройки', en: 'Settings' },
+  'settings.weight': { ru: 'Вес', en: 'Weight' },
+  'settings.weightUnit.footer': {
+    ru: 'Используется по умолчанию для новых упражнений. У каждого упражнения можно выбрать свои единицы.',
+    en: 'Used as the default for new exercises. Each exercise can still choose its own unit.',
+  },
   'settings.language': { ru: 'Язык', en: 'Language' },
   'settings.appearance': { ru: 'Внешний вид', en: 'Appearance' },
   'settings.theme': { ru: 'Тема', en: 'Theme' },
   'settings.morePhase2': {
-    ru: 'Единицы веса и синхронизация появятся в следующих фазах.',
-    en: 'Weight units and sync arrive in later phases.',
+    ru: 'Синхронизация появится в следующей фазе.',
+    en: 'Sync arrives in a later phase.',
   },
   'theme.system': { ru: 'Системная', en: 'System' },
   'theme.light': { ru: 'Светлая', en: 'Light' },

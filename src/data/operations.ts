@@ -7,6 +7,7 @@ import { nextOrder } from '@/domain/ordering'
 import { computePrefill } from '@/domain/prefill'
 import { startSession } from '@/domain/session'
 import { clampReps, clampWeightKg, isValidDuration, sanitizeName } from '@/domain/validation'
+import type { StarterProgram } from '@/domain/starterPrograms'
 import type {
   ExerciseLog,
   Metric,
@@ -15,7 +16,7 @@ import type {
   SetEntry,
   WorkoutSession,
 } from '@/domain/types'
-import type { WeightUnit } from '@/prefs/preferences'
+import type { Language, WeightUnit } from '@/prefs/preferences'
 import { notifyDataChanged } from './changes'
 import { repository as repo } from './dexie-repository'
 
@@ -83,6 +84,42 @@ export async function deleteRoutineDay(id: string): Promise<void> {
 export async function reorderRoutineDays(orderedIds: readonly string[]): Promise<void> {
   const days = await repo.routineDays.listOrdered()
   await applyReorder(days, orderedIds, (records) => repo.routineDays.bulkPut(records))
+}
+
+/**
+ * Apply a Starter Program (§10, Appendix B): insert its days appended after any
+ * existing days, and their exercises, in order, with names written in `language`
+ * (they become plain user data and never re-translate, §9).
+ */
+export async function applyStarterProgram(
+  program: StarterProgram,
+  language: Language
+): Promise<void> {
+  const existingDays = await repo.routineDays.listOrdered()
+  const ts = now()
+  let dayOrder = nextOrder(existingDays)
+  const days: RoutineDay[] = []
+  const exercises: RoutineExercise[] = []
+
+  for (const daySeed of program.days) {
+    const day: RoutineDay = { id: newId(), name: daySeed.name[language], order: dayOrder++, updatedAt: ts }
+    days.push(day)
+    daySeed.exercises.forEach((exerciseSeed, index) => {
+      exercises.push({
+        id: newId(),
+        dayId: day.id,
+        name: exerciseSeed.name[language],
+        order: index,
+        metric: exerciseSeed.metric,
+        weightUnit: 'kg',
+        updatedAt: ts,
+      })
+    })
+  }
+
+  await repo.routineDays.bulkPut(days)
+  await repo.routineExercises.bulkPut(exercises)
+  notifyDataChanged()
 }
 
 // ── Routine Exercises ────────────────────────────────────────────────────────
