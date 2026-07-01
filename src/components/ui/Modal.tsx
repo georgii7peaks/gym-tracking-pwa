@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <header className="flex items-center justify-between gap-3 border-b-2 border-border px-4 py-3">
-          <h2 className="text-lg font-extrabold">{title}</h2>
+          <h2 className="display text-lg">{title}</h2>
           <button
             type="button"
             onClick={onClose}

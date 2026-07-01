@@ -16,9 +16,7 @@ export function SettingsPage() {
     <Screen title={t('settings.title')}>
       <div className="flex flex-col gap-6">
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-            {t('settings.language')}
-          </h2>
+          <h2 className="kicker">{t('settings.language')}</h2>
           <Card>
             <CardBody>
               <SegmentedControl<Language>
@@ -35,9 +33,7 @@ export function SettingsPage() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-            {t('settings.appearance')}
-          </h2>
+          <h2 className="kicker">{t('settings.appearance')}</h2>
           <Card>
             <CardBody>
               <SegmentedControl<ThemePreference>

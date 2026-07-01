@@ -11,7 +11,7 @@ export function EmptyState({ icon: Icon, title, hint }: EmptyStateProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
       <Icon aria-hidden className="h-12 w-12 text-muted-foreground" strokeWidth={2.25} />
-      <p className="text-lg font-bold">{title}</p>
+      <p className="display text-xl">{title}</p>
       {hint && <p className="max-w-xs text-sm text-muted-foreground">{hint}</p>}
     </div>
   )

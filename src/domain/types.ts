@@ -77,6 +77,11 @@ export interface SetEntry extends SyncMeta {
   exerciseName: string
   /** Kept for Previous Set comparison and record-keeping (ms). */
   createdAt: number
+  /**
+   * Completed-checkmark state (design's inline logging). Absent/false = planned;
+   * true = performed. Drives the "sets done" + volume stats and the rest timer.
+   */
+  done?: boolean
 }
 
 /** Union of every syncable entity — handy for the generic repository/sync layer. */

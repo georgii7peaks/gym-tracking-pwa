@@ -69,7 +69,7 @@ export function RoutinesPage() {
                   to={`/routines/${day.id}`}
                   className="flex flex-1 flex-col gap-1 border-2 border-border bg-card p-3 shadow-retro active:translate-x-[3px] active:translate-y-[3px] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <span className="text-lg font-bold">{day.name}</span>
+                  <span className="display text-lg">{day.name}</span>
                   <span className="text-sm text-muted-foreground">
                     {t('routines.exercisesCount', { n: exerciseCount })}
                   </span>

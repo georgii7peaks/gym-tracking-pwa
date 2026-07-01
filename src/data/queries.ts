@@ -101,6 +101,30 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
 
 // ── Exercise tracking (§5.5) ─────────────────────────────────────────────────
 
+/** The inline Workout screen: a session with each exercise's full set list. */
+export interface WorkoutExercise {
+  log: ExerciseLog
+  sets: SetEntry[]
+}
+
+export interface WorkoutScreenData {
+  session: WorkoutSession | undefined
+  exercises: WorkoutExercise[]
+}
+
+export async function getLatestSession(): Promise<WorkoutSession | undefined> {
+  return (await repo.workoutSessions.listNewestFirst())[0]
+}
+
+export async function getWorkoutScreen(sessionId?: string): Promise<WorkoutScreenData> {
+  const session = sessionId ? await repo.workoutSessions.get(sessionId) : await getLatestSession()
+  if (!session) return { session: undefined, exercises: [] }
+  const logs = await repo.exerciseLogs.bySession(session.id)
+  const exercises: WorkoutExercise[] = []
+  for (const log of logs) exercises.push({ log, sets: await repo.sets.byLog(log.id) })
+  return { session, exercises }
+}
+
 export interface TrackingData {
   log: ExerciseLog | undefined
   session: WorkoutSession | undefined

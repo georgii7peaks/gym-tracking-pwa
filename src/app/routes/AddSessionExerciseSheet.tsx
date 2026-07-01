@@ -16,12 +16,15 @@ interface AddSessionExerciseSheetProps {
   open: boolean
   sessionId: string
   onClose: () => void
+  /** Fired with the exercise name after a successful add (for a toast). */
+  onAdded?: (name: string) => void
 }
 
 export function AddSessionExerciseSheet({
   open,
   sessionId,
   onClose,
+  onAdded,
 }: AddSessionExerciseSheetProps) {
   const { t } = useI18n()
   const { unit: defaultUnit } = useWeightUnit()
@@ -40,8 +43,9 @@ export function AddSessionExerciseSheet({
   const canAdd = name.trim().length > 0
   const submit = async () => {
     if (!canAdd) return
-    await addSessionExercise(sessionId, name, metric, weightUnit)
+    const log = await addSessionExercise(sessionId, name, metric, weightUnit)
     onClose()
+    if (log) onAdded?.(log.name)
   }
 
   return (
@@ -74,9 +78,7 @@ export function AddSessionExerciseSheet({
           <p className="text-sm text-muted-foreground">{t('session.addExerciseMessage')}</p>
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-            {t('dayEditor.dataType')}
-          </span>
+          <span className="kicker">{t('dayEditor.dataType')}</span>
           <SegmentedControl<Metric>
             ariaLabel={t('dayEditor.dataType')}
             value={metric}
@@ -89,9 +91,7 @@ export function AddSessionExerciseSheet({
         </div>
         {metric === 'weightReps' && (
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              {t('weightUnit.label')}
-            </span>
+            <span className="kicker">{t('weightUnit.label')}</span>
             <SegmentedControl<WeightUnit>
               ariaLabel={t('weightUnit.label')}
               value={weightUnit}

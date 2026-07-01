@@ -99,6 +99,36 @@ export const catalog = {
     en: 'These exercises will pre-fill when you start a workout for this day.',
   },
 
+  // ── Workout (inline active session — design) ────────────────────────────────
+  'workout.title': { ru: 'Тренировка', en: 'Workout' },
+  'workout.activePrefix': { ru: 'Активна', en: 'Active' },
+  'workout.finish': { ru: 'Завершить', en: 'Finish' },
+  'workout.finished': { ru: 'Отличная работа — сохранено!', en: 'Great work — saved!' },
+  'workout.stat.time': { ru: 'Время', en: 'Time' },
+  'workout.stat.volume': { ru: 'Объём, кг', en: 'Volume, kg' },
+  'workout.stat.sets': { ru: 'Подходы', en: 'Sets done' },
+  'workout.empty.title': { ru: 'Нет активной тренировки', en: 'No active workout' },
+  'workout.empty.hint': {
+    ru: 'Начните тренировку по одному из дней программы.',
+    en: 'Start a workout from one of your program days.',
+  },
+  'workout.start': { ru: 'Начать тренировку', en: 'Start workout' },
+  'workout.setDone': { ru: 'Отметить подход выполненным', en: 'Mark set done' },
+  'workout.colWeight': { ru: 'Вес', en: 'Weight' },
+  'workout.colReps': { ru: 'Повт.', en: 'Reps' },
+  'workout.colTime': { ru: 'Время', en: 'Time' },
+  'workout.addSet': { ru: 'Добавить подход', en: 'Add set' },
+  'workout.addedExercise': { ru: 'Добавлено: {name}', en: 'Added {name}' },
+  'workout.finishConfirm.title': { ru: 'Завершить тренировку?', en: 'Finish workout?' },
+  'workout.finishConfirm.message': {
+    ru: 'Тренировка сохранится в списке тренировок.',
+    en: 'This workout will be saved to your list.',
+  },
+
+  // ── Rest timer (design) ──────────────────────────────────────────────────────
+  'rest.title': { ru: 'Таймер отдыха', en: 'Rest timer' },
+  'rest.skip': { ru: 'Пропустить →', en: 'Skip →' },
+
   // ── Session detail (§5.3) ────────────────────────────────────────────────────
   'session.dateSection': { ru: 'Дата и время', en: 'Date & time' },
   'session.start': { ru: 'Начало тренировки', en: 'Workout start' },

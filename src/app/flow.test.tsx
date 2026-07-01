@@ -1,53 +1,71 @@
-// Phase 1 acceptance: the full strength-tracking loop through the real UI,
-// entirely offline (Dexie only) — Start a Session -> Session detail -> Exercise
-// tracking -> add a set.
+// Acceptance: the inline workout loop through the real UI, entirely offline —
+// start a session, add a set on the exercise card, tick it done, watch the
+// stats update.
 import { describe, it, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '@/test/renderApp'
 import { addRoutineExercise, createRoutineDay } from '@/data/operations'
 
-describe('Local core loop (Phase 1)', () => {
-  it('starts a session from a routine day and logs a set', async () => {
+describe('Inline workout loop', () => {
+  it('starts a session, logs a set and marks it done', async () => {
     const user = userEvent.setup()
 
-    // Seed a routine day with one exercise.
     const day = await createRoutineDay('Day A')
     await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
 
     renderApp('/workouts')
 
-    // Open the Start Workout sheet and pick the day.
-    await user.click(await screen.findByRole('button', { name: 'Новая тренировка' }))
+    // Empty state -> start a workout from the day.
+    await user.click(await screen.findByRole('button', { name: 'Начать тренировку' }))
     await user.click(await screen.findByRole('button', { name: /Day A/ }))
 
-    // Landed in the new Session detail with the copied exercise.
-    expect(await screen.findByRole('heading', { name: 'Day A' })).toBeInTheDocument()
-    const exerciseLink = await screen.findByRole('link', { name: /Bench press/ })
-    expect(exerciseLink).toHaveTextContent(/Не начато/)
+    // Inline workout screen shows the copied exercise with no sets yet.
+    expect(await screen.findByText('Bench press')).toBeInTheDocument()
 
-    // Drill into the exercise and add a set (cold defaults: 0 kg × 8).
-    await user.click(exerciseLink)
-    await user.click(await screen.findByRole('button', { name: 'Добавить подход' }))
+    // Add a set (cold prefill: 0 / 12, unchecked) -> SETS stat shows 0/1.
+    await user.click(await screen.findByRole('button', { name: /Добавить подход/ }))
+    expect(await screen.findByText('0/1')).toBeInTheDocument()
 
-    expect(await screen.findByText('Подход 1')).toBeInTheDocument()
-    expect(screen.getByText('0 кг × 8')).toBeInTheDocument()
+    // Tick it done -> SETS stat becomes 1/1.
+    await user.click(screen.getByRole('button', { name: 'Отметить подход выполненным' }))
+    expect(await screen.findByText('1/1')).toBeInTheDocument()
   })
 
-  it('shows weight in the exercise’s chosen unit, with kg in parentheses (lb)', async () => {
+  it('steps weight in the exercise’s chosen unit (lb)', async () => {
     const user = userEvent.setup()
 
-    // Exercise configured to display in pounds; storage stays canonical kg.
     const day = await createRoutineDay('Day A')
     await addRoutineExercise(day!.id, 'Bench press', 'weightReps', 'lb')
 
     renderApp('/workouts')
-    await user.click(await screen.findByRole('button', { name: 'Новая тренировка' }))
+    await user.click(await screen.findByRole('button', { name: 'Начать тренировку' }))
     await user.click(await screen.findByRole('button', { name: /Day A/ }))
-    await user.click(await screen.findByRole('link', { name: /Bench press/ }))
-    await user.click(await screen.findByRole('button', { name: 'Добавить подход' }))
+    await user.click(await screen.findByRole('button', { name: /Добавить подход/ }))
 
-    // Chosen unit primary, kg in parentheses.
-    expect(await screen.findByText('0 фунты (0 кг) × 8')).toBeInTheDocument()
+    // One tap of the weight + steps by 5 (lb increment), not 2.5 (kg).
+    await user.click(await screen.findByRole('button', { name: 'Вес +' }))
+    expect(await screen.findByText('5')).toBeInTheDocument()
+  })
+
+  it('finishing confirms in a bottom drawer and returns to the list', async () => {
+    const user = userEvent.setup()
+
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+
+    renderApp('/workouts')
+    await user.click(await screen.findByRole('button', { name: 'Начать тренировку' }))
+    await user.click(await screen.findByRole('button', { name: /Day A/ }))
+    expect(await screen.findByText('Bench press')).toBeInTheDocument()
+
+    // Finish -> drawer confirmation.
+    await user.click(await screen.findByRole('button', { name: 'Завершить' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Завершить тренировку?' })
+    await user.click(within(drawer).getByRole('button', { name: 'Завершить' }))
+
+    // Back on the Workouts list, which now holds the saved session.
+    expect(await screen.findByRole('heading', { name: 'Тренировки' })).toBeInTheDocument()
+    expect(await screen.findByText('Day A')).toBeInTheDocument()
   })
 })

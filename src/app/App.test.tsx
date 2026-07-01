@@ -3,11 +3,11 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '@/test/renderApp'
 
-describe('App shell (Phase 0)', () => {
+describe('App shell', () => {
   it('renders the three tabs and the Workouts empty state in Russian by default', async () => {
     renderApp('/workouts')
 
-    // Default language is Russian.
+    // Default language is Russian; the Workouts list shows its empty state.
     expect(screen.getByRole('heading', { name: 'Тренировки' })).toBeInTheDocument()
     expect(screen.getByText('Пока нет тренировок')).toBeInTheDocument()
 

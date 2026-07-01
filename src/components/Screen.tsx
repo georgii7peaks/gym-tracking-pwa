@@ -34,7 +34,7 @@ export function Screen({ title, onBack, headerRight, children, className }: Scre
             <ChevronLeft aria-hidden className="h-5 w-5" strokeWidth={2.5} />
           </button>
         )}
-        <h1 className="min-w-0 flex-1 truncate text-2xl font-extrabold tracking-tight">{title}</h1>
+        <h1 className="display min-w-0 flex-1 truncate text-2xl">{title}</h1>
         {headerRight}
       </header>
       <div className={cn('flex flex-1 flex-col p-4', className)}>{children}</div>

@@ -148,3 +148,32 @@ describe('operations — cascade delete a session', () => {
     expect(await repo.sets.byLog(log.id)).toHaveLength(0)
   })
 })
+
+describe('operations — auto-fill from the previous workout of the same type', () => {
+  it('copies the prior session’s sets (unchecked) into a repeated workout', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+
+    // First workout of this type: log two sets.
+    const s1 = await startSessionFromDay(day!.id)
+    const log1 = await firstLog(s1!.id)
+    await addSet(log1, { weightKg: 60, reps: 8, durationSec: 0 })
+    await addSet(log1, { weightKg: 62.5, reps: 6, durationSec: 0 })
+    // Backdate so it is unambiguously "prior" to the next session.
+    await repo.workoutSessions.put({ ...s1!, startedAt: 1000 })
+
+    // Second workout of the same type: sets pre-populated from the first.
+    const s2 = await startSessionFromDay(day!.id)
+    const sets = await repo.sets.byLog((await firstLog(s2!.id)).id)
+    expect(sets.map((x) => x.weightKg)).toEqual([60, 62.5])
+    expect(sets.map((x) => x.reps)).toEqual([8, 6])
+    expect(sets.every((x) => x.done === false)).toBe(true)
+  })
+
+  it('leaves exercises empty when there is no prior workout of that type', async () => {
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+    const s1 = await startSessionFromDay(day!.id)
+    expect(await repo.sets.byLog((await firstLog(s1!.id)).id)).toHaveLength(0)
+  })
+})

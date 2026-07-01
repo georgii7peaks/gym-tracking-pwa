@@ -1,6 +1,8 @@
 // Haptics wrapper (APP_SPECIFICATION.md §12). Three intents mapped to
 // `navigator.vibrate` patterns; a no-op where the API is unsupported (most
-// desktops, iOS Safari) so callers never need to feature-check.
+// desktops, iOS Safari) so callers never need to feature-check. Also gated by
+// the "Sound & haptics" preference.
+import { getPreference } from '@/prefs/preferences'
 
 export type HapticIntent = 'success' | 'warning' | 'selection'
 
@@ -14,9 +16,9 @@ function canVibrate(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
 }
 
-/** Fire a haptic for the given intent; safely does nothing when unsupported. */
+/** Fire a haptic for the given intent; safely does nothing when unsupported/off. */
 export function haptic(intent: HapticIntent): void {
-  if (!canVibrate()) return
+  if (!canVibrate() || !getPreference('soundHaptics')) return
   try {
     navigator.vibrate(PATTERNS[intent])
   } catch {

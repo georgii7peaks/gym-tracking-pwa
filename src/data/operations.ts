@@ -4,6 +4,7 @@
 // (Start a Session, cascade deletes) live here rather than in the generic port.
 import { newId, now } from '@/domain/ids'
 import { nextOrder } from '@/domain/ordering'
+import { computePrefill } from '@/domain/prefill'
 import { startSession } from '@/domain/session'
 import { clampReps, clampWeightKg, isValidDuration, sanitizeName } from '@/domain/validation'
 import type {
@@ -160,8 +161,50 @@ export async function startSessionFromDay(dayId: string): Promise<WorkoutSession
   const { session, logs } = startSession(day, exercises, now())
   await repo.workoutSessions.put(session)
   if (logs.length > 0) await repo.exerciseLogs.bulkPut(logs)
+  await prefillFromPreviousSession(session, logs)
   notifyDataChanged()
   return session
+}
+
+/**
+ * Pre-populate a just-started session's sets from the most recent PRIOR workout
+ * of the SAME type (same session name), matched per exercise by name. Copied
+ * sets are left unchecked (`done: false`) so the user only tweaks and ticks them.
+ * No prior workout of this type -> exercises start empty.
+ */
+async function prefillFromPreviousSession(
+  session: WorkoutSession,
+  logs: readonly ExerciseLog[]
+): Promise<void> {
+  const sessions = await repo.workoutSessions.listNewestFirst()
+  const prior = sessions.find(
+    (s) => s.id !== session.id && s.name === session.name && s.startedAt < session.startedAt
+  )
+  if (!prior) return
+
+  const priorLogs = await repo.exerciseLogs.bySession(prior.id)
+  const copied: SetEntry[] = []
+  for (const log of logs) {
+    const priorLog = priorLogs.find((l) => l.name === log.name)
+    if (!priorLog) continue
+    const priorSets = await repo.sets.byLog(priorLog.id)
+    priorSets.forEach((ps, index) => {
+      const createdAt = now()
+      copied.push({
+        id: newId(),
+        exerciseLogId: log.id,
+        weightKg: ps.weightKg,
+        reps: ps.reps,
+        durationSec: ps.durationSec,
+        order: index,
+        exerciseName: log.name,
+        createdAt,
+        updatedAt: createdAt,
+        done: false,
+      })
+    })
+  }
+  if (copied.length > 0) await repo.sets.bulkPut(copied)
 }
 
 export async function updateSessionStartedAt(id: string, startedAt: number): Promise<void> {
@@ -250,10 +293,71 @@ export async function addSet(log: ExerciseLog, input: NewSetInput): Promise<SetE
     exerciseName: log.name, // denormalised -> powers Previous Set (§6.2)
     createdAt,
     updatedAt: createdAt,
+    done: false,
   }
   await repo.sets.put(set)
   notifyDataChanged()
   return set
+}
+
+/**
+ * Append a set pre-filled from history (this log's last set -> Previous Set §6.2
+ * -> cold defaults §6.3), left unchecked. This is what the inline "+ Add set"
+ * uses so the user usually only tweaks a stepper and ticks it done.
+ */
+export async function addPlannedSet(log: ExerciseLog): Promise<SetEntry | null> {
+  const existing = await repo.sets.byLog(log.id)
+  const lastSet = existing.reduce<SetEntry | undefined>(
+    (latest, s) => (!latest || s.createdAt > latest.createdAt ? s : latest),
+    undefined
+  )
+  let previous: SetEntry | undefined
+  if (!lastSet) {
+    const session = await repo.workoutSessions.get(log.sessionId)
+    previous = session ? await repo.sets.mostRecentByName(log.name, session.startedAt) : undefined
+  }
+  const prefill = computePrefill(log.metric, lastSet, previous)
+  const createdAt = now()
+  const set: SetEntry = {
+    id: newId(),
+    exerciseLogId: log.id,
+    weightKg: prefill.weightKg,
+    reps: prefill.reps,
+    durationSec: prefill.durationSec,
+    order: nextOrder(existing),
+    exerciseName: log.name,
+    createdAt,
+    updatedAt: createdAt,
+    done: false,
+  }
+  await repo.sets.put(set)
+  notifyDataChanged()
+  return set
+}
+
+/** Edit a set's numeric values in place (inline steppers). */
+export async function updateSet(
+  id: string,
+  patch: { weightKg?: number; reps?: number; durationSec?: number }
+): Promise<void> {
+  const set = await repo.sets.get(id)
+  if (!set) return
+  const next = { ...set, updatedAt: now() }
+  if (patch.weightKg !== undefined) next.weightKg = clampWeightKg(patch.weightKg)
+  if (patch.reps !== undefined) next.reps = clampReps(patch.reps)
+  if (patch.durationSec !== undefined) next.durationSec = Math.max(0, Math.floor(patch.durationSec))
+  await repo.sets.put(next)
+  notifyDataChanged()
+}
+
+/** Toggle the completed checkmark. Returns the new done state (for rest-timer). */
+export async function toggleSetDone(id: string): Promise<boolean> {
+  const set = await repo.sets.get(id)
+  if (!set) return false
+  const done = !set.done
+  await repo.sets.put({ ...set, done, updatedAt: now() })
+  notifyDataChanged()
+  return done
 }
 
 export async function deleteSet(id: string): Promise<void> {

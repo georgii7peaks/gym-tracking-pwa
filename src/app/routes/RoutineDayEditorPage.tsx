@@ -80,16 +80,12 @@ export function RoutineDayEditorPage() {
     >
       <div className="flex flex-col gap-6">
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-            {t('dayEditor.nameSection')}
-          </h2>
+          <h2 className="kicker">{t('dayEditor.nameSection')}</h2>
           <TextField value={name} onChange={(e) => setName(e.target.value)} onBlur={commitName} />
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-            {t('dayEditor.exercises')}
-          </h2>
+          <h2 className="kicker">{t('dayEditor.exercises')}</h2>
           <ul className="flex flex-col gap-3">
             {exercises.map((exercise, index) => (
               <ExerciseEditorRow

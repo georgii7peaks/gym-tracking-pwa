@@ -8,7 +8,11 @@ Offline-first PWA rebuild of the Gym Tracking iOS app. See
 ## Stack
 
 - **React 19 + Vite 6 + TypeScript** (strict)
-- **Tailwind CSS v4** with a RetroUI-flavoured token set (bold borders, hard offset shadow)
+- **Tailwind CSS v4**, neo-brutalist tokens imported from the `Gym Tracker`
+  design reference (claude.ai/design): Light = "Classic RetroUI" (cream + amber),
+  Dark = "Neon Night" (near-black + electric lime). Self-hosted fonts (Archivo
+  Black / Space Grotesk / Space Mono, with Manrope + JetBrains Mono as
+  Cyrillic-capable fallbacks) — bundled for offline, no CDN.
 - **React Router v7** — three tabs, each its own stack
 - **Dexie / IndexedDB** — the single local source of truth (ADR-0002)
 - **Zustand** — UI/session state (wired in Phase 1)
@@ -54,17 +58,43 @@ reads refresh. Dexie is the sole implementation today; the Phase 4 Firestore
 sync adapter will sit beside it, never on the UI path — guest mode loads no
 network code.
 
-## Phase status
+## Status
 
-- **Phase 0 — Scaffolding & foundations — ✅ done.** Installable 3-tab shell,
-  offline-capable app shell, data/domain skeleton, i18n + theme wired, haptics.
-- **Phase 1 — Local core — ✅ done.** The full strength-tracking loop, 100%
-  offline: Routines (days + exercises, add/rename/delete/reorder, inline metric
-  picker), Start a Session (snapshot copy), Session detail (editable date,
-  exercise rows, one-off add, confirmed delete), Exercise tracking
-  (metric-adaptive inputs, Previous Set, pre-fill, set list + reorder/delete).
-  Domain rules unit-tested; a UI test drives the loop end-to-end.
-- Phases 2–4: see `IMPLEMENTATION_PLAN.md`.
+### ✅ Done
+
+- **Phase 0 — Scaffolding & foundations.** Installable 3-tab PWA shell, offline
+  app shell, data/domain skeleton (Dexie + repository port), i18n (RU/EN, live
+  switch) + theme (System/Light/Dark), haptics.
+- **Phase 1 — Local core (strength-tracking loop, 100% offline).** Routines
+  (days + exercises: add/rename/delete/reorder, inline metric picker), Start a
+  Session (snapshot copy), set logging, Previous Set + pre-fill (default **12
+  reps**), validation, ordering. Domain rules unit-tested.
+- **Per-exercise weight unit (kg / lb).** Chosen on the exercise; stored
+  canonically in kg, entered/stepped in the chosen unit; pounds are flagged on
+  the workout screen (note + weight-column header). Volume normalizes to kg.
+- **Design re-skin from the `Gym Tracker` reference.** Light = "Classic RetroUI",
+  Dark = "Neon Night"; self-hosted fonts (Archivo Black / Space Grotesk / Space
+  Mono + Cyrillic fallbacks Manrope / JetBrains Mono), neo-brutalist tokens.
+- **Inline Workout screen (design).** `/workouts` = history list (add-workout
+  button as the last item); `/workouts/:id` = one active session inline: stats
+  bar (time / kg volume / sets done), Finish button under the stats, exercise
+  cards with inline set steppers + done checkmark, rest timer (auto-starts on
+  completing a set), toast. Finish opens a bottom **Drawer** to confirm → back to
+  the list. Starting a workout **auto-fills sets from the previous workout of the
+  same type**. Bottom tab bar matches the template (active tab = accent block).
+
+### ⏳ Not done yet
+
+- **Routines tab (mockup layout):** program templates (Push/Pull/Leg…) +
+  "my routines" + builder with an exercise-library.
+- **Settings tab (mockup layout):** grouped cards, global kg/lb default,
+  rest-timer default, sound / auto-rest toggles, data rows. (Profile card,
+  Sign out and Notifications are deferred — no auth in guest mode.)
+- **Phase 2 — Starter-program seeding** (Appendix B) + first-launch prompt.
+- **Phase 3 — PWA hardening:** branded/maskable icons, service-worker update
+  toast, Lighthouse pass.
+- **Phase 4 — Google auth + Firestore sync** (Account Mode) — see
+  `IMPLEMENTATION_PLAN.md`; the user already has a Firebase project.
 
 ### Note on icons
 

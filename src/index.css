@@ -4,46 +4,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * RetroUI-flavoured design tokens (IMPLEMENTATION_PLAN.md §1.6): bold black
- * borders, a hard offset shadow, and a yellow primary. Semantic CSS variables
- * are defined per scheme, then mapped into Tailwind's theme below.
+ * Neo-brutalist design tokens, imported from the "Gym Tracker" design reference
+ * (claude.ai/design): bold borders, hard offset shadows, chunky type. Two named
+ * schemes map onto the app's Light/Dark themes:
+ *   - Light  = "Classic RetroUI" — warm cream, amber accent, ink borders.
+ *   - Dark   = "Neon Night"      — near-black surfaces, electric-lime accent.
+ * Semantic CSS variables are defined per scheme, then mapped into Tailwind below.
  */
 :root {
-  --background: #fdfcf7;
-  --foreground: #16150f;
+  --background: #fbf7ec;
+  --foreground: #1b1a17;
   --card: #ffffff;
-  --card-foreground: #16150f;
-  --muted: #f1efe4;
-  --muted-foreground: #6b6a5e;
-  --primary: #ffdb33;
-  --primary-foreground: #16150f;
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
-  --border: #16150f;
-  --ring: #16150f;
+  --card-foreground: #1b1a17;
+  --muted: #f4eedb;
+  --muted-foreground: #8a8578;
+  --primary: #ffc53d;
+  --primary-foreground: #1b1a17;
+  --accent: #ffc53d;
+  --accent-foreground: #1b1a17;
+  --border: #1b1a17;
+  --ring: #1b1a17;
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
-  --success: #30a46c;
+  --success: #2f9e57;
   --warning: #f5a524;
+
+  /* Hard offset shadow colour (distinct from the border in dark) + corner radius. */
+  --shadow-color: #1b1a17;
+  --radius-retro: 4px;
 }
 
 .dark {
-  --background: #17160f;
-  --foreground: #f5f3e7;
-  --card: #23221a;
-  --card-foreground: #f5f3e7;
-  --muted: #2c2a20;
-  --muted-foreground: #a7a493;
-  --primary: #ffdb33;
-  --primary-foreground: #16150f;
-  --accent: #60a5fa;
-  --accent-foreground: #16150f;
-  --border: #f5f3e7;
-  --ring: #f5f3e7;
-  --destructive: #ff6369;
-  --destructive-foreground: #16150f;
-  --success: #3dd68c;
+  --background: #141310;
+  --foreground: #f4efdc;
+  --card: #211f18;
+  --card-foreground: #f4efdc;
+  --muted: #2b291f;
+  --muted-foreground: #8f8b79;
+  --primary: #c9ff48;
+  --primary-foreground: #141310;
+  --accent: #c9ff48;
+  --accent-foreground: #141310;
+  --border: #4a4634;
+  --ring: #c9ff48;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #141310;
+  --success: #7bd88f;
   --warning: #ffca62;
+
+  --shadow-color: #000000;
+  --radius-retro: 3px;
 }
 
 @theme inline {
@@ -64,14 +74,22 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
 
-  /* Sharp (square) corners — the neobrutalist RetroUI look. */
-  --radius-retro: 0rem;
-  --shadow-retro: 3px 3px 0 0 var(--border);
-  --shadow-retro-sm: 2px 2px 0 0 var(--border);
-  --shadow-retro-lg: 5px 5px 0 0 var(--border);
+  /* Hard offset shadows; colour resolves per scheme via var(--shadow-color). */
+  --shadow-retro: 4px 4px 0 0 var(--shadow-color);
+  --shadow-retro-sm: 2px 2px 0 0 var(--shadow-color);
+  --shadow-retro-lg: 6px 6px 0 0 var(--shadow-color);
 
+  /*
+   * Type: Space Grotesk body / Space Mono numerals / Archivo Black display —
+   * the design's Latin fonts, each backed by a Cyrillic-capable fallback
+   * (Manrope, JetBrains Mono) so the RU-default UI keeps the same character.
+   */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    'Space Grotesk', 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono:
+    'Space Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-display: 'Archivo Black', 'Manrope', ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -106,4 +124,42 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+@layer components {
+  /*
+   * Chunky display type (headings, list titles). font-weight 800 makes the
+   * Cyrillic fallback (Manrope) render heavy; Archivo Black is single-weight and
+   * ignores it, so Latin and Cyrillic read equally bold.
+   */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+
+  /* Space Mono "kicker" — the small uppercase section labels in the design. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem; /* 11px */
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+}
+
+/* Bottom-drawer slide-up (RetroUI drawer). Reduced-motion is handled globally. */
+@keyframes drawer-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-drawer {
+  animation: drawer-up 180ms ease-out;
 }

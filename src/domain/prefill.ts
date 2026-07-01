@@ -2,7 +2,7 @@
 // the Exercise tracking screen opens:
 //   1. this log's own last set  ->
 //   2. else the Previous Set (§6.2)  ->
-//   3. else cold defaults (weight 0, reps 8, 0:30).
+//   3. else cold defaults (weight 0, reps 12, 0:30).
 // Metric-aware so a duration exercise never seeds a 0:00 (invalid) duration.
 import type { Metric, SetEntry } from './types'
 
@@ -12,7 +12,7 @@ export interface PrefillValues {
   durationSec: number
 }
 
-export const COLD_DEFAULTS: PrefillValues = { weightKg: 0, reps: 8, durationSec: 30 }
+export const COLD_DEFAULTS: PrefillValues = { weightKg: 0, reps: 12, durationSec: 30 }
 
 export function computePrefill(
   metric: Metric,
