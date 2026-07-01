@@ -23,6 +23,8 @@ import {
   deleteExerciseLog,
   deleteSession,
   deleteSet,
+  finishSession,
+  resumeSession,
   toggleSetDone,
   updateSet,
 } from '@/data/operations'
@@ -116,7 +118,10 @@ export function WorkoutScreen() {
     )
   const skipRest = () => setRest((r) => ({ endsAt: null, total: r.total }))
 
-  const elapsedSec = Math.floor((nowMs - session.startedAt) / 1000)
+  // Time stops once the session is finished — the stat freezes at finishedAt
+  // instead of ticking against the live clock.
+  const isFinished = session.finishedAt !== undefined
+  const elapsedSec = Math.floor(((session.finishedAt ?? nowMs) - session.startedAt) / 1000)
 
   return (
     <Screen
@@ -128,7 +133,7 @@ export function WorkoutScreen() {
     >
       <div className="flex flex-col gap-4">
         <div className="kicker">
-          {t('workout.activePrefix')} · {session.name}
+          {t(isFinished ? 'workout.finishedPrefix' : 'workout.activePrefix')} · {session.name}
         </div>
 
         {/* Stats bar */}
@@ -138,10 +143,16 @@ export function WorkoutScreen() {
           <StatTile value={`${stats.done}/${stats.total}`} label={t('workout.stat.sets')} />
         </div>
 
-        {/* Finish — directly under the stats bar */}
-        <Button className="w-full" onClick={() => setFinishOpen(true)}>
-          {t('workout.finish')}
-        </Button>
+        {/* Finish / Continue — directly under the stats bar */}
+        {isFinished ? (
+          <Button className="w-full" onClick={() => resumeSession(session.id)}>
+            {t('workout.continue')}
+          </Button>
+        ) : (
+          <Button className="w-full" onClick={() => setFinishOpen(true)}>
+            {t('workout.finish')}
+          </Button>
+        )}
 
         {/* Exercise cards */}
         {exercises.map((exercise, i) => (
@@ -201,8 +212,9 @@ export function WorkoutScreen() {
             </Button>
             <Button
               className="flex-1"
-              onClick={() => {
+              onClick={async () => {
                 setFinishOpen(false)
+                await finishSession(session.id)
                 navigate('/workouts')
               }}
             >

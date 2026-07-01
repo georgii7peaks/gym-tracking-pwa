@@ -9,9 +9,11 @@ import {
   createRoutineDay,
   deleteRoutineDay,
   deleteSession,
+  finishSession,
   getPreviousSet,
   renameRoutineExercise,
   reorderRoutineDays,
+  resumeSession,
   startSessionFromDay,
 } from './operations'
 import { STARTER_PROGRAMS } from '@/domain/starterPrograms'
@@ -148,6 +150,22 @@ describe('operations — cascade delete a session', () => {
     expect(await repo.workoutSessions.get(session!.id)).toBeUndefined()
     expect(await repo.exerciseLogs.bySession(session!.id)).toHaveLength(0)
     expect(await repo.sets.byLog(log.id)).toHaveLength(0)
+  })
+})
+
+describe('operations — finish / resume a session', () => {
+  it('finishing stamps finishedAt; resuming clears it', async () => {
+    const day = await createRoutineDay('Day A')
+    const session = await startSessionFromDay(day!.id)
+    expect(session!.finishedAt).toBeUndefined()
+
+    await finishSession(session!.id)
+    const finished = await repo.workoutSessions.get(session!.id)
+    expect(finished!.finishedAt).toBeTypeOf('number')
+
+    await resumeSession(session!.id)
+    const resumed = await repo.workoutSessions.get(session!.id)
+    expect(resumed!.finishedAt).toBeUndefined()
   })
 })
 

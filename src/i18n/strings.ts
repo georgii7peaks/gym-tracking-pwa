@@ -102,7 +102,9 @@ export const catalog = {
   // ── Workout (inline active session — design) ────────────────────────────────
   'workout.title': { ru: 'Тренировка', en: 'Workout' },
   'workout.activePrefix': { ru: 'Активна', en: 'Active' },
+  'workout.finishedPrefix': { ru: 'Завершена', en: 'Finished' },
   'workout.finish': { ru: 'Завершить', en: 'Finish' },
+  'workout.continue': { ru: 'Продолжить', en: 'Continue' },
   'workout.finished': { ru: 'Отличная работа — сохранено!', en: 'Great work — saved!' },
   'workout.stat.time': { ru: 'Время', en: 'Time' },
   'workout.stat.volume': { ru: 'Объём, кг', en: 'Volume, kg' },

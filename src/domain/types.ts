@@ -47,6 +47,8 @@ export interface WorkoutSession extends SyncMeta {
   name: string
   /** When the workout happened (ms). Editable via the date picker. */
   startedAt: number
+  /** Set when Finish is confirmed; freezes the TIME stat. Absent = still active. */
+  finishedAt?: number
 }
 
 export interface ExerciseLog extends SyncMeta {

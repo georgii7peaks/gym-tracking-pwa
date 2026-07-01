@@ -251,6 +251,22 @@ export async function updateSessionStartedAt(id: string, startedAt: number): Pro
   notifyDataChanged()
 }
 
+/** Finish a workout: freezes the TIME stat at the current elapsed duration. */
+export async function finishSession(id: string): Promise<void> {
+  const session = await repo.workoutSessions.get(id)
+  if (!session) return
+  await repo.workoutSessions.put({ ...session, finishedAt: now(), updatedAt: now() })
+  notifyDataChanged()
+}
+
+/** Reopen a finished workout: clears the freeze so the TIME stat resumes ticking. */
+export async function resumeSession(id: string): Promise<void> {
+  const session = await repo.workoutSessions.get(id)
+  if (!session) return
+  await repo.workoutSessions.put({ ...session, finishedAt: undefined, updatedAt: now() })
+  notifyDataChanged()
+}
+
 /** Cascade delete a session -> its logs -> their sets. */
 export async function deleteSession(id: string): Promise<void> {
   const logs = await repo.exerciseLogs.bySession(id)
