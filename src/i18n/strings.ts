@@ -11,8 +11,6 @@ export const catalog = {
   'common.add': { ru: 'Добавить', en: 'Add' },
   'common.cancel': { ru: 'Отмена', en: 'Cancel' },
   'common.delete': { ru: 'Удалить', en: 'Delete' },
-  'common.save': { ru: 'Сохранить', en: 'Save' },
-  'common.ok': { ru: 'ОК', en: 'OK' },
   'common.close': { ru: 'Закрыть', en: 'Close' },
   'common.back': { ru: 'Назад', en: 'Back' },
 
@@ -105,15 +103,9 @@ export const catalog = {
   'workout.finishedPrefix': { ru: 'Завершена', en: 'Finished' },
   'workout.finish': { ru: 'Завершить', en: 'Finish' },
   'workout.continue': { ru: 'Продолжить', en: 'Continue' },
-  'workout.finished': { ru: 'Отличная работа — сохранено!', en: 'Great work — saved!' },
   'workout.stat.time': { ru: 'Время', en: 'Time' },
   'workout.stat.volume': { ru: 'Объём, кг', en: 'Volume, kg' },
   'workout.stat.sets': { ru: 'Подходы', en: 'Sets done' },
-  'workout.empty.title': { ru: 'Нет активной тренировки', en: 'No active workout' },
-  'workout.empty.hint': {
-    ru: 'Начните тренировку по одному из дней программы.',
-    en: 'Start a workout from one of your program days.',
-  },
   'workout.start': { ru: 'Начать тренировку', en: 'Start workout' },
   'workout.setDone': { ru: 'Отметить подход выполненным', en: 'Mark set done' },
   'workout.colWeight': { ru: 'Вес', en: 'Weight' },
@@ -131,60 +123,14 @@ export const catalog = {
   'rest.title': { ru: 'Таймер отдыха', en: 'Rest timer' },
   'rest.skip': { ru: 'Пропустить →', en: 'Skip →' },
 
-  // ── Session detail (§5.3) ────────────────────────────────────────────────────
-  'session.dateSection': { ru: 'Дата и время', en: 'Date & time' },
-  'session.start': { ru: 'Начало тренировки', en: 'Workout start' },
-  'session.exercisesFooter': {
-    ru: 'Нажмите на упражнение, чтобы записать подходы.',
-    en: 'Tap an exercise to record sets.',
-  },
+  // ── Inline workout screen — add-exercise sheet (§5.4 analog) ────────────────
   'session.addExercise': { ru: 'Добавить упражнение', en: 'Add exercise' },
-  'session.addExerciseFooter': {
-    ru: 'Добавить упражнение только для этой тренировки.',
-    en: 'Add an exercise just for this workout.',
-  },
   'session.addExerciseMessage': {
     ru: 'Будет добавлено только к этой тренировке.',
     en: 'Will be added to this workout only.',
   },
   'session.deleteWorkout': { ru: 'Удалить тренировку', en: 'Delete workout' },
-  'session.summary.weightReps': {
-    ru: '{n} подходов · посл. {weight} × {reps}',
-    en: '{n} sets · last {weight} × {reps}',
-  },
-  'session.summary.duration': {
-    ru: '{n} подходов · посл. {duration}',
-    en: '{n} sets · last {duration}',
-  },
-  'session.notStarted': { ru: 'Не начато · {metric}', en: 'Not started · {metric}' },
-  'session.setsRecorded': { ru: 'Подходы записаны', en: 'Sets recorded' },
-
-  // ── Add Session Exercise sheet (§5.4) ──────────────────────────────────────
   'session.addExercise.title': { ru: 'Добавить упражнение', en: 'Add exercise' },
-
-  // ── Exercise tracking (§5.5) ─────────────────────────────────────────────────
-  'exercise.newSet': { ru: 'Новый подход', en: 'New set' },
-  'exercise.minutes': { ru: 'Минуты: {n}', en: 'Minutes: {n}' },
-  'exercise.seconds': { ru: 'Секунды: {n}', en: 'Seconds: {n}' },
-  'exercise.weight': { ru: 'Вес', en: 'Weight' },
-  'exercise.adjustWeight': { ru: 'Изменить вес ({display})', en: 'Adjust weight ({display})' },
-  'exercise.reps': { ru: 'Повторения: {n}', en: 'Reps: {n}' },
-  'exercise.addSet': { ru: 'Добавить подход', en: 'Add set' },
-  'exercise.setsSection': { ru: 'Подходы за тренировку', en: 'Sets this workout' },
-  'exercise.noSets.title': { ru: 'Подходов нет', en: 'No sets' },
-  'exercise.noSets.hint': {
-    ru: 'Заполните вес и повторения выше и нажмите «Добавить подход».',
-    en: 'Enter weight and reps above, then tap Add set.',
-  },
-  'exercise.setNumber': { ru: 'Подход {n}', en: 'Set {n}' },
-  'exercise.lastTime.weightReps': {
-    ru: 'Прошлый раз: {weight} × {reps} повт.',
-    en: 'Last time: {weight} × {reps} reps',
-  },
-  'exercise.lastTime.duration': {
-    ru: 'Прошлый раз: {duration}',
-    en: 'Last time: {duration}',
-  },
 
   // ── Starter program prompt (§5.9, §10) ──────────────────────────────────────
   'starterPrompt.title': { ru: 'Готовая программа', en: 'Starter program' },
@@ -203,6 +149,10 @@ export const catalog = {
     en: 'Used as the default for new exercises. Each exercise can still choose its own unit.',
   },
   'settings.language': { ru: 'Язык', en: 'Language' },
+  'settings.languagePicker': { ru: 'Язык интерфейса', en: 'Interface language' },
+  // Endonyms: a language's own name is invariant across the active UI language.
+  'language.ru': { ru: 'Русский', en: 'Русский' },
+  'language.en': { ru: 'English', en: 'English' },
   'settings.appearance': { ru: 'Внешний вид', en: 'Appearance' },
   'settings.theme': { ru: 'Тема', en: 'Theme' },
   'settings.morePhase2': {

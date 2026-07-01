@@ -45,12 +45,12 @@ export function SettingsPage() {
           <Card>
             <CardBody>
               <SegmentedControl<Language>
-                ariaLabel={t('settings.language')}
+                ariaLabel={t('settings.languagePicker')}
                 value={language}
                 onChange={setLanguage}
                 options={[
-                  { value: 'ru', label: 'Русский' },
-                  { value: 'en', label: 'English' },
+                  { value: 'ru', label: t('language.ru') },
+                  { value: 'en', label: t('language.en') },
                 ]}
               />
             </CardBody>
