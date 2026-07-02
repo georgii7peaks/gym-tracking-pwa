@@ -27,9 +27,9 @@ export function TabBar() {
   return (
     <nav
       className="border-t-2 border-border bg-card"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}
     >
-      <ul className="mx-auto flex max-w-2xl gap-2 px-3.5 py-2.5">
+      <ul className="mx-auto flex max-w-2xl gap-2 px-3.5 pt-2.5">
         {TABS.map(({ to, labelKey, icon: Icon }) => (
           <li key={to} className="flex-1">
             <NavLink
