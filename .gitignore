@@ -5,6 +5,9 @@ node_modules
 dist
 dev-dist
 
+# Firebase CLI local deploy cache
+.firebase
+
 # Local env / secrets (Firebase web config goes in .env.local — Phase 4)
 .env
 .env.local
