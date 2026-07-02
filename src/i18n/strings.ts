@@ -155,10 +155,6 @@ export const catalog = {
   'language.en': { ru: 'English', en: 'English' },
   'settings.appearance': { ru: 'Внешний вид', en: 'Appearance' },
   'settings.theme': { ru: 'Тема', en: 'Theme' },
-  'settings.morePhase2': {
-    ru: 'Синхронизация появится в следующей фазе.',
-    en: 'Sync arrives in a later phase.',
-  },
   'theme.system': { ru: 'Системная', en: 'System' },
   'theme.light': { ru: 'Светлая', en: 'Light' },
   'theme.dark': { ru: 'Тёмная', en: 'Dark' },
@@ -174,6 +170,22 @@ export const catalog = {
     ru: 'На iPhone/iPad: нажмите «Поделиться», затем «На экран «Домой»».',
     en: 'On iPhone/iPad: tap Share, then "Add to Home Screen".',
   },
+
+  // ── Settings: Sync (Phase 4 — Google sign-in + Firestore) ───────────────────
+  'settings.sync': { ru: 'Синхронизация', en: 'Sync' },
+  'settings.sync.signIn': { ru: 'Войти через Google', en: 'Sign in with Google' },
+  'settings.sync.footer': {
+    ru: 'Войдите через Google, чтобы синхронизировать тренировки и программу между устройствами. По умолчанию данные хранятся только на этом устройстве.',
+    en: 'Sign in with Google to sync your workouts and routine across devices. Off by default — data stays on this device.',
+  },
+  'settings.sync.signOut': { ru: 'Выйти', en: 'Sign out' },
+  'settings.sync.status.syncing': { ru: 'Синхронизация…', en: 'Syncing…' },
+  'settings.sync.status.error': { ru: 'Ошибка синхронизации', en: 'Sync error' },
+  'settings.sync.status.idle': {
+    ru: 'Последняя синхронизация: {relativeTime}',
+    en: 'Last sync: {relativeTime}',
+  },
+  'settings.sync.neverSynced': { ru: 'Ещё не синхронизировано', en: 'Not synced yet' },
 } satisfies Record<string, Entry>
 
 export type StringKey = keyof typeof catalog

@@ -28,3 +28,24 @@ export function fromDateTimeLocalValue(value: string): number | null {
   const ms = new Date(value).getTime()
   return Number.isNaN(ms) ? null : ms
 }
+
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 31536000],
+  ['month', 2592000],
+  ['day', 86400],
+  ['hour', 3600],
+  ['minute', 60],
+]
+
+/** "3 minutes ago" / "3 минуты назад" — used for the sync status row (§5.8). */
+export function formatRelativeTime(ms: number, lang: Language, nowMs: number): string {
+  const diffSec = Math.round((ms - nowMs) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(LOCALES[lang], { numeric: 'auto' })
+  if (Math.abs(diffSec) < 60) return rtf.format(0, 'second')
+  for (const [unit, secondsInUnit] of RELATIVE_UNITS) {
+    if (Math.abs(diffSec) >= secondsInUnit) {
+      return rtf.format(Math.round(diffSec / secondsInUnit), unit)
+    }
+  }
+  return rtf.format(Math.round(diffSec / 60), 'minute')
+}

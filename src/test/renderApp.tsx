@@ -6,6 +6,7 @@
 import type { ReactElement } from 'react'
 import { render } from '@testing-library/react'
 import { MemoryRouter, useRoutes } from 'react-router-dom'
+import { AuthProvider } from '@/auth/AuthProvider'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { routes } from '@/app/router'
@@ -18,9 +19,11 @@ export function renderApp(initialPath = '/workouts') {
   return render(
     <ThemeProvider>
       <I18nProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <RoutedApp />
-        </MemoryRouter>
+        <AuthProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <RoutedApp />
+          </MemoryRouter>
+        </AuthProvider>
       </I18nProvider>
     </ThemeProvider>
   )
@@ -30,7 +33,9 @@ export function renderApp(initialPath = '/workouts') {
 export function renderWithProviders(ui: ReactElement) {
   return render(
     <ThemeProvider>
-      <I18nProvider>{ui}</I18nProvider>
+      <I18nProvider>
+        <AuthProvider>{ui}</AuthProvider>
+      </I18nProvider>
     </ThemeProvider>
   )
 }

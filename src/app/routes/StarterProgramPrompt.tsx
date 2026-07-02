@@ -1,17 +1,22 @@
 // Starter Program prompt (APP_SPECIFICATION.md §5.9, §10): offered once, when
 // Routines is empty and the seeding decision hasn't been made yet. Mounted once
 // at the app root (AppLayout) so the check runs on launch regardless of tab.
-// Guest Mode never has cloud sync, so — per §10 — the check runs immediately
-// rather than waiting for a first import to settle.
+// Guest Mode never has cloud sync, so the check runs immediately. In Account
+// Mode, a device signing in for the first time (lastSyncedAt still 0) waits
+// for that first sync round to settle before deciding — otherwise a routine
+// that's about to arrive from another device wouldn't get the chance to
+// suppress the prompt (§10, Phase 4).
 import { useEffect, useState } from 'react'
 import { ChevronRight, Dumbbell, Flame, Zap, type LucideIcon } from 'lucide-react'
 import { Drawer } from '@/components/ui/Drawer'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/auth/AuthProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { STARTER_PROGRAMS, type StarterProgram, type StarterProgramIcon } from '@/domain/starterPrograms'
 import { applyStarterProgram } from '@/data/operations'
 import { repository as repo } from '@/data/dexie-repository'
 import { getPreference, setPreference } from '@/prefs/preferences'
+import { useSyncStatus } from '@/sync/syncStatus'
 import { haptics } from '@/lib/haptics'
 
 const ICONS: Record<StarterProgramIcon, LucideIcon> = {
@@ -22,11 +27,16 @@ const ICONS: Record<StarterProgramIcon, LucideIcon> = {
 
 export function StarterProgramPrompt() {
   const { t, language } = useI18n()
+  const { user } = useAuth()
+  const syncStatus = useSyncStatus()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let active = true
     if (getPreference('didCompleteInitialSeed')) return
+    // Account Mode, first sync not settled yet — wait; re-runs on every sync
+    // status change until lastSyncedAt actually advances past zero.
+    if (user && getPreference('lastSyncedAt') === 0) return
     repo.routineDays.list().then((days) => {
       if (!active) return
       if (days.length > 0) {
@@ -39,7 +49,7 @@ export function StarterProgramPrompt() {
     return () => {
       active = false
     }
-  }, [])
+  }, [user, syncStatus.state])
 
   const decide = () => {
     setPreference('didCompleteInitialSeed', true)

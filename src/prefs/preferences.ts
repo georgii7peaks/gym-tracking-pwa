@@ -18,6 +18,14 @@ export interface Preferences {
   soundHaptics: boolean
   /** Sticky: the starter-program decision has been made (§10). */
   didCompleteInitialSeed: boolean
+  /**
+   * Sticky: this device has used Google sign-in at least once. Gates whether
+   * AuthProvider eagerly loads the Firebase SDK on boot — false means pure
+   * Guest Mode, which must load zero network code (IMPLEMENTATION_PLAN.md §5).
+   */
+  didUseGoogleSignIn: boolean
+  /** Cursor (ms, client clock) for the last successful push/pull sync round. */
+  lastSyncedAt: number
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -28,6 +36,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoRest: true,
   soundHaptics: true,
   didCompleteInitialSeed: false,
+  didUseGoogleSignIn: false,
+  lastSyncedAt: 0,
 }
 
 // Storage keys mirror the iOS build (Appendix C) where meaningful.
@@ -39,6 +49,8 @@ const KEYS: Record<keyof Preferences, string> = {
   autoRest: 'autoRest',
   soundHaptics: 'soundHaptics',
   didCompleteInitialSeed: 'didCompleteInitialSeed',
+  didUseGoogleSignIn: 'didUseGoogleSignIn',
+  lastSyncedAt: 'lastSyncedAt',
 }
 
 function safeGet(key: string): string | null {
@@ -83,5 +95,7 @@ export function getAllPreferences(): Preferences {
     autoRest: getPreference('autoRest'),
     soundHaptics: getPreference('soundHaptics'),
     didCompleteInitialSeed: getPreference('didCompleteInitialSeed'),
+    didUseGoogleSignIn: getPreference('didUseGoogleSignIn'),
+    lastSyncedAt: getPreference('lastSyncedAt'),
   }
 }
