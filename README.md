@@ -31,7 +31,7 @@ Offline-first PWA rebuild of the Gym Tracking iOS app. See
 | `npm run lint`      | ESLint                                        |
 | `npm run format`    | Prettier write                                |
 | `npm run typecheck` | `tsc` project typecheck                       |
-| `npm run gen:icons` | Regenerate placeholder PWA icons into `public/` |
+| `npm run gen:icons` | Regenerate the branded PWA icons into `public/` |
 
 ## Architecture
 
@@ -82,21 +82,38 @@ network code.
   completing a set), toast. Finish opens a bottom **Drawer** to confirm → back to
   the list. Starting a workout **auto-fills sets from the previous workout of the
   same type**. Bottom tab bar matches the template (active tab = accent block).
+- **Phase 2 — Settings, seeding & string parity.** Settings: weight unit
+  (kg/lb, display-only conversion), theme and language pickers. Starter
+  Program prompt (three programs, Appendix B) gated by the sticky
+  `didCompleteInitialSeed` flag; program names written in the current language
+  at apply time. Full RU/EN string-catalog audit.
+- **Phase 3 — PWA hardening.** Service-worker update banner with an active
+  update check on app foreground (not just at registration), install button +
+  iOS install hint, maskable icon, precache fix. Deployed to Firebase Hosting.
+- **Phase 4 — Google auth + Firestore sync (Account Mode).** Google sign-in
+  (`src/auth/`), explicit push/pull delta sync with per-doc LWW and tombstones
+  (`src/sync/syncEngine.ts`), smart-union merge on first sign-in
+  (`src/sync/signInMerge.ts`), sync status + last-sync row in Settings,
+  Firestore rules locked to `users/{uid}/**`. In Account Mode the starter
+  prompt waits for the first pull to settle before deciding.
+- **Settings — Workout section.** Rest-timer default (M:SS stepper, 15 s
+  steps), auto-rest toggle (start the rest timer on checking a set done), and
+  a vibration/haptics toggle — all backed by the existing local prefs.
+- **Branded icons.** `npm run gen:icons` now renders the design-reference
+  RetroUI artwork (cream canvas, amber card with ink border + hard offset
+  shadow, double-plate dumbbell; maskable + apple-touch are full-bleed amber
+  with the glyph inside the safe zone). Same script, no external deps.
+- **Lighthouse pass (2026-07-06, production build via `vite preview`,
+  headless Chrome):** Performance **88**, Accessibility **100**, Best
+  Practices **100**, SEO 63. The SEO score is the deliberate
+  `robots.txt: Disallow /` (personal app, not meant to be indexed). Firebase
+  ships as a separate lazy chunk — Guest Mode loads no network code. Manifest
+  + SW verified installable (Lighthouse v12 dropped the PWA category).
 
-### ⏳ Not done yet
+### 🚫 Descoped (explicitly declined 2026-07-01)
 
-- **Routines tab (mockup layout):** program templates (Push/Pull/Leg…) +
-  "my routines" + builder with an exercise-library.
-- **Settings tab (mockup layout):** grouped cards, global kg/lb default,
-  rest-timer default, sound / auto-rest toggles, data rows. (Profile card,
-  Sign out and Notifications are deferred — no auth in guest mode.)
-- **Phase 2 — Starter-program seeding** (Appendix B) + first-launch prompt.
-- **Phase 3 — PWA hardening:** branded/maskable icons, service-worker update
-  toast, Lighthouse pass.
-- **Phase 4 — Google auth + Firestore sync** (Account Mode) — see
-  `IMPLEMENTATION_PLAN.md`; the user already has a Firebase project.
-
-### Note on icons
-
-`public/*.png` are generated placeholders (a RetroUI-yellow dumbbell tile) so
-the app is installable now. Branded/maskable artwork is a Phase 3 task.
+- **Routines tab mockup extras:** the persistent program-template carousel and
+  full-screen builder with an exercise library — the one-time Starter Program
+  sheet and the PromptDialog → Day Editor flow stay instead.
+- **Settings Data section** (export / restore / about rows). Profile card and
+  Notifications also remain deferred.
