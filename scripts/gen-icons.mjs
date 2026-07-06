@@ -1,14 +1,22 @@
-// Generates valid PNG PWA icons from scratch (no external deps).
-// Draws a RetroUI-yellow tile with a black dumbbell glyph. Placeholder
-// branding for Phase 0; polished/branded icons come in Phase 3.
+// Generates valid PNG PWA icons from scratch (no external deps), using the
+// design-reference tokens (Classic RetroUI): cream #FBF7EC, amber #FFC53D,
+// ink #1B1A17. Two compositions:
+//  - tile: cream canvas, amber card with an ink border and the RetroUI hard
+//    offset shadow, double-plate dumbbell glyph (launcher icons).
+//  - fullbleed: edge-to-edge amber with the glyph kept inside the maskable
+//    safe zone (maskable / apple-touch / small favicon).
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const OUT = process.argv[2] ? resolve(process.argv[2]) : resolve(__dirname, 'public')
+const OUT = process.argv[2] ? resolve(process.argv[2]) : resolve(__dirname, '../public')
 mkdirSync(OUT, { recursive: true })
+
+const AMBER = [255, 197, 61] // #FFC53D
+const INK = [27, 26, 23] // #1B1A17
+const CREAM = [251, 247, 236] // #FBF7EC
 
 function crc32(buf) {
   let c = ~0
@@ -41,9 +49,8 @@ function png(width, height, rgb) {
   const idat = deflateSync(raw, { level: 9 })
   return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0))])
 }
-function makeIcon(size, { border = true } = {}) {
-  const BG = [255, 219, 51] // RetroUI yellow
-  const FG = [17, 17, 17] // near-black
+
+function canvas(size, bg) {
   const rgb = Buffer.alloc(size * size * 3)
   const set = (x, y, c) => {
     if (x < 0 || y < 0 || x >= size || y >= size) return
@@ -56,49 +63,74 @@ function makeIcon(size, { border = true } = {}) {
     for (let yy = Math.round(y); yy < Math.round(y + h); yy++)
       for (let xx = Math.round(x); xx < Math.round(x + w); xx++) set(xx, yy, c)
   }
-  rect(0, 0, size, size, BG)
-  if (border) {
-    const bw = Math.round(size * 0.06)
-    rect(0, 0, size, bw, FG)
-    rect(0, size - bw, size, bw, FG)
-    rect(0, 0, bw, size, FG)
-    rect(size - bw, 0, bw, size, FG)
+  rect(0, 0, size, size, bg)
+  return { rgb, rect }
+}
+
+/**
+ * Double-plate dumbbell, ink, centered on (cx, cy). `g` scales the glyph:
+ * total width = 0.62g, plate height = 0.42g.
+ */
+function dumbbell(rect, cx, cy, g) {
+  const bar = { w: 0.56 * g, h: 0.1 * g }
+  const inner = { w: 0.09 * g, h: 0.42 * g, at: 0.2 * g }
+  const outer = { w: 0.07 * g, h: 0.3 * g, at: 0.275 * g }
+  rect(cx - bar.w / 2, cy - bar.h / 2, bar.w, bar.h, INK)
+  for (const s of [-1, 1]) {
+    rect(cx + s * inner.at - inner.w / 2, cy - inner.h / 2, inner.w, inner.h, INK)
+    rect(cx + s * outer.at - outer.w / 2, cy - outer.h / 2, outer.w, outer.h, INK)
   }
-  // Dumbbell: center bar + two plates, kept within the maskable safe zone.
-  const cx = size / 2
-  const cy = size / 2
-  const barW = size * 0.42
-  const barH = size * 0.11
-  rect(cx - barW / 2, cy - barH / 2, barW, barH, FG)
-  const plateW = size * 0.1
-  const plateH = size * 0.32
-  rect(cx - barW / 2 - plateW, cy - plateH / 2, plateW, plateH, FG)
-  rect(cx + barW / 2, cy - plateH / 2, plateW, plateH, FG)
+}
+
+/** Launcher icon: cream canvas, amber card + ink border + hard offset shadow. */
+function tileIcon(size) {
+  const { rgb, rect } = canvas(size, CREAM)
+  const inset = 0.1 * size
+  const card = size - 2 * inset
+  const shadow = 0.05 * size
+  const border = Math.max(2, Math.round(0.045 * size))
+  rect(inset + shadow, inset + shadow, card, card, INK) // hard shadow
+  rect(inset, inset, card, card, INK) // border (card underlay)
+  rect(inset + border, inset + border, card - 2 * border, card - 2 * border, AMBER)
+  dumbbell(rect, size / 2, size / 2, 0.92 * size)
+  return png(size, size, rgb)
+}
+
+/** Full-bleed amber; glyph sized for the maskable safe zone. Optional frame. */
+function fullbleedIcon(size, { border = false } = {}) {
+  const { rgb, rect } = canvas(size, AMBER)
+  if (border) {
+    const bw = Math.max(2, Math.round(0.06 * size))
+    rect(0, 0, size, bw, INK)
+    rect(0, size - bw, size, bw, INK)
+    rect(0, 0, bw, size, INK)
+    rect(size - bw, 0, bw, size, INK)
+  }
+  dumbbell(rect, size / 2, size / 2, size)
   return png(size, size, rgb)
 }
 
 const files = [
-  ['pwa-192x192.png', makeIcon(192)],
-  ['pwa-512x512.png', makeIcon(512)],
-  ['pwa-maskable-512x512.png', makeIcon(512, { border: false })],
-  ['apple-touch-icon.png', makeIcon(180)],
-  ['favicon-48x48.png', makeIcon(48)],
+  ['pwa-192x192.png', tileIcon(192)],
+  ['pwa-512x512.png', tileIcon(512)],
+  ['pwa-maskable-512x512.png', fullbleedIcon(512)],
+  ['apple-touch-icon.png', fullbleedIcon(180)],
+  ['favicon-48x48.png', fullbleedIcon(48, { border: true })],
 ]
 for (const [name, buf] of files) {
   writeFileSync(resolve(OUT, name), buf)
   console.log(`wrote ${name} (${buf.length} bytes)`)
 }
 
-// A crisp SVG favicon for modern browsers.
+// A crisp SVG favicon for modern browsers (same fullbleed + frame design).
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#ffdb33"/>
-  <rect x="0" y="0" width="64" height="4" fill="#111"/>
-  <rect x="0" y="60" width="64" height="4" fill="#111"/>
-  <rect x="0" y="0" width="4" height="64" fill="#111"/>
-  <rect x="60" y="0" width="4" height="64" fill="#111"/>
-  <rect x="18" y="28.5" width="28" height="7" fill="#111"/>
-  <rect x="11" y="22" width="7" height="20" fill="#111"/>
-  <rect x="46" y="22" width="7" height="20" fill="#111"/>
+  <rect width="64" height="64" fill="#FFC53D"/>
+  <path d="M0 0h64v4H0zM0 60h64v4H0zM0 0h4v64H0zM60 0h4v64h-4z" fill="#1B1A17"/>
+  <rect x="14.1" y="28.8" width="35.8" height="6.4" fill="#1B1A17"/>
+  <rect x="16.3" y="18.6" width="5.8" height="26.9" fill="#1B1A17"/>
+  <rect x="41.9" y="18.6" width="5.8" height="26.9" fill="#1B1A17"/>
+  <rect x="12.2" y="22.4" width="4.5" height="19.2" fill="#1B1A17"/>
+  <rect x="47.4" y="22.4" width="4.5" height="19.2" fill="#1B1A17"/>
 </svg>`
 writeFileSync(resolve(OUT, 'favicon.svg'), favicon)
 console.log('wrote favicon.svg')
