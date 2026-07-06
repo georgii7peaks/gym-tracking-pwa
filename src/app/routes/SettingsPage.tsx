@@ -4,6 +4,9 @@ import { Screen } from '@/components/Screen'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { Stepper } from '@/components/ui/Stepper'
+import { Switch } from '@/components/ui/Switch'
+import { formatDuration } from '@/domain/duration'
 import { useAuth } from '@/auth/AuthProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -18,6 +21,9 @@ export function SettingsPage() {
   const { t, language, setLanguage } = useI18n()
   const { theme, setTheme } = useTheme()
   const [weightUnit, setWeightUnitState] = useState<WeightUnit>(() => getPreference('weightUnit'))
+  const [restTimerSec, setRestTimerSecState] = useState(() => getPreference('restTimerSec'))
+  const [autoRest, setAutoRestState] = useState(() => getPreference('autoRest'))
+  const [soundHaptics, setSoundHapticsState] = useState(() => getPreference('soundHaptics'))
   const canInstall = useCanInstall()
   const showIOSInstallHint = !canInstall && isIOS() && !isStandalone()
   const { user, ready, authError, signInWithGoogle, signOutUser } = useAuth()
@@ -27,6 +33,21 @@ export function SettingsPage() {
   const setWeightUnit = (unit: WeightUnit) => {
     setWeightUnitState(unit)
     setPreference('weightUnit', unit)
+  }
+
+  const setRestTimerSec = (sec: number) => {
+    setRestTimerSecState(sec)
+    setPreference('restTimerSec', sec)
+  }
+
+  const setAutoRest = (on: boolean) => {
+    setAutoRestState(on)
+    setPreference('autoRest', on)
+  }
+
+  const setSoundHaptics = (on: boolean) => {
+    setSoundHapticsState(on)
+    setPreference('soundHaptics', on)
   }
 
   return (
@@ -81,6 +102,32 @@ export function SettingsPage() {
                   { value: 'dark', label: t('theme.dark') },
                 ]}
               />
+            </CardBody>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="kicker">{t('settings.workout')}</h2>
+          <Card>
+            <CardBody className="flex flex-col gap-4">
+              <Stepper
+                label={t('settings.restTimer')}
+                value={restTimerSec}
+                min={15}
+                max={300}
+                step={15}
+                format={formatDuration}
+                onChange={setRestTimerSec}
+              />
+              <p className="text-sm text-muted-foreground">{t('settings.restTimer.footer')}</p>
+              <Switch label={t('settings.autoRest')} checked={autoRest} onChange={setAutoRest} />
+              <p className="text-sm text-muted-foreground">{t('settings.autoRest.footer')}</p>
+              <Switch
+                label={t('settings.haptics')}
+                checked={soundHaptics}
+                onChange={setSoundHaptics}
+              />
+              <p className="text-sm text-muted-foreground">{t('settings.haptics.footer')}</p>
             </CardBody>
           </Card>
         </section>

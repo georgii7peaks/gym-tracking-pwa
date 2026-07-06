@@ -158,6 +158,22 @@ export const catalog = {
   'theme.system': { ru: 'Системная', en: 'System' },
   'theme.light': { ru: 'Светлая', en: 'Light' },
   'theme.dark': { ru: 'Тёмная', en: 'Dark' },
+  'settings.workout': { ru: 'Тренировка', en: 'Workout' },
+  'settings.restTimer': { ru: 'Таймер отдыха', en: 'Rest timer' },
+  'settings.restTimer.footer': {
+    ru: 'Длительность отдыха между подходами по умолчанию.',
+    en: 'Default rest duration between sets.',
+  },
+  'settings.autoRest': { ru: 'Автозапуск таймера отдыха', en: 'Auto-start rest timer' },
+  'settings.autoRest.footer': {
+    ru: 'Запускать таймер отдыха после отметки подхода выполненным.',
+    en: 'Start the rest timer when a set is checked done.',
+  },
+  'settings.haptics': { ru: 'Вибрация', en: 'Vibration' },
+  'settings.haptics.footer': {
+    ru: 'Виброотклик на действия (если поддерживается устройством).',
+    en: 'Haptic feedback on actions (where the device supports it).',
+  },
 
   // ── PWA: service-worker update banner (Phase 3) ─────────────────────────────
   'update.available': { ru: 'Доступна новая версия приложения', en: 'A new version is available' },
