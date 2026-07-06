@@ -3,8 +3,12 @@ import '@testing-library/jest-dom/vitest'
 // Provide an in-memory IndexedDB for the data layer under jsdom.
 import 'fake-indexeddb/auto'
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { db } from '@/data/db'
+
+// Parallel test files contend for CPU (jsdom + fake-indexeddb), so the default
+// 1s findBy*/waitFor timeout is flaky under a full-suite run.
+configure({ asyncUtilTimeout: 4000 })
 
 afterEach(async () => {
   cleanup()

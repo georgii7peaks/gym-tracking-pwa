@@ -2,10 +2,16 @@
 // start a session, add a set on the exercise card, tick it done, watch the
 // stats update.
 import { describe, it, expect } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '@/test/renderApp'
 import { addRoutineExercise, createRoutineDay } from '@/data/operations'
+
+// The Start Workout sheet itself lists the day's exercise names, so wait for
+// it to close before asserting on the workout screen — otherwise a finder can
+// match the sheet's copy of the text and see it detach when the sheet unmounts.
+const sheetClosed = () =>
+  waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
 describe('Inline workout loop', () => {
   it('starts a session, logs a set and marks it done', async () => {
@@ -19,6 +25,7 @@ describe('Inline workout loop', () => {
     // Empty state -> start a workout from the day.
     await user.click(await screen.findByRole('button', { name: 'Начать тренировку' }))
     await user.click(await screen.findByRole('button', { name: /Day A/ }))
+    await sheetClosed()
 
     // Inline workout screen shows the copied exercise with no sets yet.
     expect(await screen.findByText('Bench press')).toBeInTheDocument()
@@ -57,6 +64,7 @@ describe('Inline workout loop', () => {
     renderApp('/workouts')
     await user.click(await screen.findByRole('button', { name: 'Начать тренировку' }))
     await user.click(await screen.findByRole('button', { name: /Day A/ }))
+    await sheetClosed()
     expect(await screen.findByText('Bench press')).toBeInTheDocument()
 
     // Finish -> drawer confirmation.

@@ -26,7 +26,9 @@ export function useLiveData<T>(read: () => Promise<T>, deps: readonly unknown[])
             setLoading(false)
           }
         },
-        () => {
+        (error) => {
+          // Surface read failures instead of silently rendering an empty view.
+          console.error('useLiveData read failed:', error)
           if (active) setLoading(false)
         }
       )
