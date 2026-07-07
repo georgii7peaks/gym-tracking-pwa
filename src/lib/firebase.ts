@@ -14,7 +14,19 @@ import {
 import { getFirestore } from 'firebase/firestore'
 import { firebaseConfig } from '@/config/firebase.config'
 
-const app = initializeApp(firebaseConfig)
+// Firebase Hosting serves the /__/auth/* helpers on EVERY hosting domain, so
+// when the app runs on one (web.app or firebaseapp.com) the OAuth redirect can
+// stay same-origin by pointing authDomain at the serving host. With the fixed
+// authDomain, sign-in from the other domain bounces through a third-party
+// origin whose storage modern browsers partition — the redirect result never
+// comes back and sign-in silently fails. Elsewhere (localhost dev) the
+// configured authDomain is kept.
+const config = { ...firebaseConfig }
+if (/\.(web\.app|firebaseapp\.com)$/.test(window.location.hostname)) {
+  config.authDomain = window.location.hostname
+}
+
+const app = initializeApp(config)
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)

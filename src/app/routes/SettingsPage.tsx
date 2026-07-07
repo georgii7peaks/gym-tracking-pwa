@@ -1,17 +1,20 @@
 // Settings tab (APP_SPECIFICATION.md §5.8).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Screen } from '@/components/Screen'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Stepper } from '@/components/ui/Stepper'
 import { Switch } from '@/components/ui/Switch'
+import { Toast } from '@/components/ui/Toast'
 import { formatDuration } from '@/domain/duration'
 import { useAuth } from '@/auth/AuthProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useTheme } from '@/theme/ThemeProvider'
 import { useLiveData } from '@/data/useLiveData'
+import { exportBackup, importBackup, parseBackup } from '@/data/exportImport'
 import { formatRelativeTime } from '@/lib/datetime'
+import { downloadTextFile, pickTextFile } from '@/lib/fileTransfer'
 import { getPreference, setPreference } from '@/prefs/preferences'
 import type { Language, ThemePreference, WeightUnit } from '@/prefs/preferences'
 import { isIOS, isStandalone, promptInstall, useCanInstall } from '@/lib/installPrompt'
@@ -29,6 +32,14 @@ export function SettingsPage() {
   const { user, ready, authError, signInWithGoogle, signOutUser } = useAuth()
   const syncStatus = useSyncStatus()
   const { data: lastSyncedAt } = useLiveData(async () => getPreference('lastSyncedAt'), [])
+  const [toast, setToast] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const id = setTimeout(() => setToast(null), 1900)
+    return () => clearTimeout(id)
+  }, [toast])
 
   const setWeightUnit = (unit: WeightUnit) => {
     setWeightUnitState(unit)
@@ -48,6 +59,25 @@ export function SettingsPage() {
   const setSoundHaptics = (on: boolean) => {
     setSoundHapticsState(on)
     setPreference('soundHaptics', on)
+  }
+
+  const handleExport = async () => {
+    const snapshot = await exportBackup()
+    const date = new Date(snapshot.exportedAt).toISOString().slice(0, 10)
+    downloadTextFile(`gym-backup-${date}.json`, JSON.stringify(snapshot, null, 2))
+  }
+
+  const handleImport = async () => {
+    setImportError(null)
+    const text = await pickTextFile('.json,application/json')
+    if (text === null) return // user cancelled the picker
+    const snapshot = parseBackup(text)
+    if (!snapshot) {
+      setImportError(t('settings.data.importError'))
+      return
+    }
+    const result = await importBackup(snapshot)
+    setToast(t('settings.data.imported', { n: result.importedRecords, m: result.skippedRecords }))
   }
 
   return (
@@ -200,7 +230,24 @@ export function SettingsPage() {
             </CardBody>
           </Card>
         </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="kicker">{t('settings.data')}</h2>
+          <Card>
+            <CardBody className="flex flex-col gap-3">
+              <Button variant="secondary" className="w-full" onClick={() => void handleExport()}>
+                {t('settings.data.export')}
+              </Button>
+              <Button variant="secondary" className="w-full" onClick={() => void handleImport()}>
+                {t('settings.data.import')}
+              </Button>
+              <p className="text-sm text-muted-foreground">{t('settings.data.footer')}</p>
+              {importError && <p className="text-sm text-destructive">{importError}</p>}
+            </CardBody>
+          </Card>
+        </section>
       </div>
+      {toast && <Toast message={toast} />}
     </Screen>
   )
 }

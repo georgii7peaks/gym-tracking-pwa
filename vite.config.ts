@@ -26,6 +26,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         navigateFallback: 'index.html',
+        // Firebase Hosting's reserved namespace must reach the network: the
+        // OAuth redirect returns via /__/auth/handler, and serving the app
+        // shell there instead kills sign-in on any origin where this SW is
+        // installed.
+        navigateFallbackDenylist: [/^\/__\//],
         cleanupOutdatedCaches: true,
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],

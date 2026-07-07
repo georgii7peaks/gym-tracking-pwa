@@ -202,6 +202,23 @@ export const catalog = {
     en: 'Last sync: {relativeTime}',
   },
   'settings.sync.neverSynced': { ru: 'Ещё не синхронизировано', en: 'Not synced yet' },
+
+  // ── Settings: Data (full backup export/import to a local file) ─────────────
+  'settings.data': { ru: 'Данные', en: 'Data' },
+  'settings.data.export': { ru: 'Экспортировать данные', en: 'Export data' },
+  'settings.data.import': { ru: 'Импортировать данные', en: 'Import data' },
+  'settings.data.footer': {
+    ru: 'Экспорт сохраняет тренировки и программу в файл JSON. Импорт добавляет данные из файла к текущим — ничего не удаляется.',
+    en: 'Export saves your workouts and routine to a JSON file. Import merges data from a file into the current data — nothing is deleted.',
+  },
+  'settings.data.imported': {
+    ru: 'Импортировано записей: {n} · без изменений: {m}',
+    en: 'Imported records: {n} · unchanged: {m}',
+  },
+  'settings.data.importError': {
+    ru: 'Не удалось импортировать: это не файл резервной копии.',
+    en: 'Import failed: this is not a backup file.',
+  },
 } satisfies Record<string, Entry>
 
 export type StringKey = keyof typeof catalog
