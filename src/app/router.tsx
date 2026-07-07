@@ -8,6 +8,8 @@ import { WorkoutsListScreen } from './routes/WorkoutsListScreen'
 import { WorkoutScreen } from './routes/WorkoutScreen'
 import { RoutinesPage } from './routes/RoutinesPage'
 import { RoutineDayEditorPage } from './routes/RoutineDayEditorPage'
+import { ProgressListPage } from './routes/ProgressListPage'
+import { ExerciseProgressPage } from './routes/ExerciseProgressPage'
 import { SettingsPage } from './routes/SettingsPage'
 
 export const routes: RouteObject[] = [
@@ -20,6 +22,8 @@ export const routes: RouteObject[] = [
       { path: 'workouts/:sessionId', element: <WorkoutScreen /> },
       { path: 'routines', element: <RoutinesPage /> },
       { path: 'routines/:dayId', element: <RoutineDayEditorPage /> },
+      { path: 'progress', element: <ProgressListPage /> },
+      { path: 'progress/:exerciseName', element: <ExerciseProgressPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/workouts" replace /> },
     ],

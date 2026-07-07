@@ -3,7 +3,7 @@
 // block — bold border + hard offset shadow — with icon + mono uppercase label;
 // inactive tabs are transparent/muted. Labels read from i18n (live language).
 import { NavLink } from 'react-router-dom'
-import { Dumbbell, Rows2, SlidersHorizontal } from 'lucide-react'
+import { ChartLine, Dumbbell, Rows2, SlidersHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { StringKey } from '@/i18n/strings'
@@ -19,6 +19,7 @@ interface TabDef {
 const TABS: TabDef[] = [
   { to: '/workouts', labelKey: 'tab.workouts', icon: Dumbbell },
   { to: '/routines', labelKey: 'tab.routines', icon: Rows2 },
+  { to: '/progress', labelKey: 'tab.progress', icon: ChartLine },
   { to: '/settings', labelKey: 'tab.settings', icon: SlidersHorizontal },
 ]
 

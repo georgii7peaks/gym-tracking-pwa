@@ -4,16 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { renderApp } from '@/test/renderApp'
 
 describe('App shell', () => {
-  it('renders the three tabs and the Workouts empty state in Russian by default', async () => {
+  it('renders the four tabs and the Workouts empty state in Russian by default', async () => {
     renderApp('/workouts')
 
     // Default language is Russian; the Workouts list shows its empty state.
     expect(screen.getByRole('heading', { name: 'Тренировки' })).toBeInTheDocument()
     expect(screen.getByText('Пока нет тренировок')).toBeInTheDocument()
 
-    // All three tab labels are present.
+    // All four tab labels are present.
     expect(screen.getByRole('link', { name: /Тренировки/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Программа/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Прогресс/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Настройки/ })).toBeInTheDocument()
   })
 
@@ -29,5 +30,6 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Workouts/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Routines/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Progress/ })).toBeInTheDocument()
   })
 })

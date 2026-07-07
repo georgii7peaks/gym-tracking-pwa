@@ -1,6 +1,6 @@
 # Plan: Per-Exercise Progress Charts (Progress tab)
 
-Status: **awaiting approval** — do not implement until explicitly approved.
+Status: **implemented** (2026-07-07).
 Date: 2026-07-07
 
 ## 1. Goal

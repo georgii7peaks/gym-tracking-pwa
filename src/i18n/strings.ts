@@ -31,6 +31,7 @@ export const catalog = {
   // ── Tabs ─────────────────────────────────────────────────────────────────────
   'tab.workouts': { ru: 'Тренировки', en: 'Workouts' },
   'tab.routines': { ru: 'Программа', en: 'Routines' },
+  'tab.progress': { ru: 'Прогресс', en: 'Progress' },
   'tab.settings': { ru: 'Настройки', en: 'Settings' },
 
   // ── Metric labels ──────────────────────────────────────────────────────────
@@ -218,6 +219,27 @@ export const catalog = {
   'settings.data.importError': {
     ru: 'Не удалось импортировать: это не файл резервной копии.',
     en: 'Import failed: this is not a backup file.',
+  },
+
+  // ── Progress tab (docs/plans/progress-charts.md) ────────────────────────────
+  'progress.title': { ru: 'Прогресс', en: 'Progress' },
+  'progress.empty.title': { ru: 'Пока нет истории', en: 'No history yet' },
+  'progress.empty.hint': {
+    ru: 'Отметьте выполненные подходы в тренировке, и здесь появится прогресс по упражнениям.',
+    en: 'Mark sets done in a workout and exercise progress will show up here.',
+  },
+  'progress.range.1m': { ru: '1М', en: '1M' },
+  'progress.range.3m': { ru: '3М', en: '3M' },
+  'progress.range.6m': { ru: '6М', en: '6M' },
+  'progress.range.all': { ru: 'Всё', en: 'All' },
+  'progress.lastTrained': { ru: 'Последний раз: {date}', en: 'Last trained: {date}' },
+  'progress.noData': {
+    ru: 'Нет данных за выбранный период',
+    en: 'No data in the selected range',
+  },
+  'progress.chartLabel': {
+    ru: 'График прогресса: {name}',
+    en: 'Progress chart: {name}',
   },
 } satisfies Record<string, Entry>
 

@@ -8,6 +8,12 @@ import type {
   SetEntry,
   WorkoutSession,
 } from '@/domain/types'
+import {
+  buildExerciseIndex,
+  buildProgressSeries,
+  type ProgressSeries,
+  type TrackedExercise,
+} from '@/domain/progress'
 import { repository as repo } from './dexie-repository'
 
 // ── Workouts list (§5.1) ─────────────────────────────────────────────────────
@@ -137,4 +143,26 @@ export async function getTrackingData(logId: string): Promise<TrackingData> {
   const session = await repo.workoutSessions.get(log.sessionId)
   const sets = await repo.sets.byLog(logId)
   return { log, session, sets }
+}
+
+// ── Progress tab: per-exercise history (docs/plans/progress-charts.md) ──────
+
+async function loadSetsForLogs(logs: ExerciseLog[]): Promise<SetEntry[]> {
+  const sets: SetEntry[] = []
+  for (const log of logs) sets.push(...(await repo.sets.byLog(log.id)))
+  return sets
+}
+
+export async function listTrackedExercises(): Promise<TrackedExercise[]> {
+  const logs = await repo.exerciseLogs.list()
+  const sessions = await repo.workoutSessions.list()
+  const sets = await loadSetsForLogs(logs)
+  return buildExerciseIndex(logs, sets, sessions)
+}
+
+export async function getExerciseProgress(name: string): Promise<ProgressSeries> {
+  const logs = (await repo.exerciseLogs.list()).filter((l) => l.name === name)
+  const sessions = await repo.workoutSessions.list()
+  const sets = await loadSetsForLogs(logs)
+  return buildProgressSeries(name, logs, sets, sessions)
 }
