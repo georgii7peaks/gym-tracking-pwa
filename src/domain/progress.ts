@@ -1,13 +1,12 @@
-// Domain: per-exercise progress series (Progress tab, docs/plans/progress-charts.md).
+// Domain: whole-body progress series (Progress tab, docs/plans/progress-total-volume.md).
 // Pure aggregation over ExerciseLog + SetEntry + WorkoutSession, mirroring the
-// composite-query style already used by data/queries.ts.
-import type { WeightUnit } from '@/prefs/preferences'
+// composite-query style already used by data/queries.ts. Totals are one point per
+// Workout Session; Volume stays canonical in kg (display converts).
 import type { ExerciseLog, Metric, SetEntry, WorkoutSession } from './types'
 
 export interface TrackedExercise {
   name: string
   metric: Metric
-  weightUnit?: WeightUnit
   lastTrainedAt: number
   sessionCount: number
 }
@@ -20,7 +19,6 @@ export interface ProgressPoint {
 
 export interface ProgressSeries {
   metric: Metric
-  weightUnit?: WeightUnit
   points: ProgressPoint[]
 }
 
@@ -45,7 +43,7 @@ function resolveTrainedEntries(
   logs: ExerciseLog[],
   sets: SetEntry[],
   sessions: WorkoutSession[]
-): { metric: Metric; weightUnit: WeightUnit | undefined; entries: TrainedEntry[] } | undefined {
+): { metric: Metric; entries: TrainedEntry[] } | undefined {
   const sessionById = new Map(sessions.map((s) => [s.id, s]))
   const doneSetsByLog = new Map<string, SetEntry[]>()
   for (const set of sets) {
@@ -73,12 +71,7 @@ function resolveTrainedEntries(
   const entries = candidates
     .filter((c) => c.log.metric === metric)
     .map((c) => ({ session: c.session, doneSets: c.doneSets }))
-  return { metric, weightUnit: latest.log.weightUnit, entries }
-}
-
-/** A done set's contribution to its session's aggregated value, by metric. */
-function setValue(set: SetEntry, metric: Metric): number {
-  return metric === 'duration' ? set.durationSec : set.weightKg
+  return { metric, entries }
 }
 
 /** Distinct tracked exercises (>=1 done set), most recently trained first. */
@@ -97,7 +90,6 @@ export function buildExerciseIndex(
     index.push({
       name,
       metric: resolved.metric,
-      weightUnit: resolved.weightUnit,
       lastTrainedAt,
       sessionCount: sessionIds.size,
     })
@@ -105,29 +97,71 @@ export function buildExerciseIndex(
   return index.sort((a, b) => b.lastTrainedAt - a.lastTrainedAt)
 }
 
-/** One exercise's progression: max done value per session, oldest first. */
-export function buildProgressSeries(
-  name: string,
+/**
+ * One point per Workout Session: the sum of a per-set contribution over the
+ * session's *done* sets whose log matches `metric` (and, when given,
+ * `exerciseName`). Sessions with no matching done set contribute no point.
+ * Points sorted by `startedAt` ascending. Shared by both total builders.
+ */
+function buildTotalSeries(
   logs: ExerciseLog[],
   sets: SetEntry[],
-  sessions: WorkoutSession[]
+  sessions: WorkoutSession[],
+  metric: Metric,
+  exerciseName: string | undefined,
+  contribution: (set: SetEntry) => number
 ): ProgressSeries {
-  const resolved = resolveTrainedEntries(name, logs, sets, sessions)
-  if (!resolved) return { metric: 'weightReps', points: [] }
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  // Log id -> its session, for logs of this metric (optionally one exercise).
+  const sessionByLog = new Map<string, WorkoutSession>()
+  for (const log of logs) {
+    if (log.metric !== metric) continue
+    if (exerciseName !== undefined && log.name !== exerciseName) continue
+    const session = sessionById.get(log.sessionId)
+    if (session) sessionByLog.set(log.id, session)
+  }
 
   const bySession = new Map<string, ProgressPoint>()
-  for (const { session, doneSets } of resolved.entries) {
-    const maxValue = Math.max(...doneSets.map((s) => setValue(s, resolved.metric)))
-    const existing = bySession.get(session.id)
+  for (const set of sets) {
+    if (!set.done) continue
+    const session = sessionByLog.get(set.exerciseLogId)
+    if (!session) continue
+    const prev = bySession.get(session.id)
     bySession.set(session.id, {
       sessionId: session.id,
       startedAt: session.startedAt,
-      value: existing ? Math.max(existing.value, maxValue) : maxValue,
+      value: (prev?.value ?? 0) + contribution(set),
     })
   }
 
   const points = [...bySession.values()].sort((a, b) => a.startedAt - b.startedAt)
-  return { metric: resolved.metric, weightUnit: resolved.weightUnit, points }
+  return { metric, points }
+}
+
+/**
+ * Total training volume per session: `Σ (weightKg × reps)` over done weightReps
+ * sets, in canonical kg. Optionally scoped to a single exercise `name`.
+ */
+export function buildVolumeSeries(
+  logs: ExerciseLog[],
+  sets: SetEntry[],
+  sessions: WorkoutSession[],
+  exerciseName?: string
+): ProgressSeries {
+  return buildTotalSeries(logs, sets, sessions, 'weightReps', exerciseName, (s) => s.weightKg * s.reps)
+}
+
+/**
+ * Total training duration per session: `Σ durationSec` over done duration sets.
+ * Optionally scoped to a single exercise `name`.
+ */
+export function buildDurationSeries(
+  logs: ExerciseLog[],
+  sets: SetEntry[],
+  sessions: WorkoutSession[],
+  exerciseName?: string
+): ProgressSeries {
+  return buildTotalSeries(logs, sets, sessions, 'duration', exerciseName, (s) => s.durationSec)
 }
 
 /** Range-chip filtering (1M/3M/6M/All); kept pure (nowMs passed in) for tests. */

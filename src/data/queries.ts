@@ -9,8 +9,9 @@ import type {
   WorkoutSession,
 } from '@/domain/types'
 import {
+  buildDurationSeries,
   buildExerciseIndex,
-  buildProgressSeries,
+  buildVolumeSeries,
   type ProgressSeries,
   type TrackedExercise,
 } from '@/domain/progress'
@@ -145,7 +146,7 @@ export async function getTrackingData(logId: string): Promise<TrackingData> {
   return { log, session, sets }
 }
 
-// ── Progress tab: per-exercise history (docs/plans/progress-charts.md) ──────
+// ── Progress tab: total-volume + total-duration (docs/plans/progress-total-volume.md) ──
 
 async function loadSetsForLogs(logs: ExerciseLog[]): Promise<SetEntry[]> {
   const sets: SetEntry[] = []
@@ -153,6 +154,7 @@ async function loadSetsForLogs(logs: ExerciseLog[]): Promise<SetEntry[]> {
   return sets
 }
 
+/** Drives the filter Drawer: every exercise trained (>=1 done set). */
 export async function listTrackedExercises(): Promise<TrackedExercise[]> {
   const logs = await repo.exerciseLogs.list()
   const sessions = await repo.workoutSessions.list()
@@ -160,9 +162,24 @@ export async function listTrackedExercises(): Promise<TrackedExercise[]> {
   return buildExerciseIndex(logs, sets, sessions)
 }
 
-export async function getExerciseProgress(name: string): Promise<ProgressSeries> {
-  const logs = (await repo.exerciseLogs.list()).filter((l) => l.name === name)
+export interface ProgressSeriesSet {
+  volume: ProgressSeries
+  duration: ProgressSeries
+}
+
+/**
+ * Total Volume + Total Duration series for the Progress tab. Passing
+ * `exerciseName` scopes both totals to a single exercise (and avoids loading
+ * every set); omitting it aggregates the whole body.
+ */
+export async function getProgressSeries(exerciseName?: string): Promise<ProgressSeriesSet> {
+  const allLogs = await repo.exerciseLogs.list()
+  const logs =
+    exerciseName === undefined ? allLogs : allLogs.filter((l) => l.name === exerciseName)
   const sessions = await repo.workoutSessions.list()
   const sets = await loadSetsForLogs(logs)
-  return buildProgressSeries(name, logs, sets, sessions)
+  return {
+    volume: buildVolumeSeries(logs, sets, sessions, exerciseName),
+    duration: buildDurationSeries(logs, sets, sessions, exerciseName),
+  }
 }

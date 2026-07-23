@@ -221,7 +221,7 @@ export const catalog = {
     en: 'Import failed: this is not a backup file.',
   },
 
-  // ── Progress tab (docs/plans/progress-charts.md) ────────────────────────────
+  // ── Progress tab (docs/plans/progress-total-volume.md) ──────────────────────
   'progress.title': { ru: 'Прогресс', en: 'Progress' },
   'progress.empty.title': { ru: 'Пока нет истории', en: 'No history yet' },
   'progress.empty.hint': {
@@ -237,10 +237,13 @@ export const catalog = {
     ru: 'Нет данных за выбранный период',
     en: 'No data in the selected range',
   },
-  'progress.chartLabel': {
-    ru: 'График прогресса: {name}',
-    en: 'Progress chart: {name}',
-  },
+  'progress.filter.all': { ru: 'Все упражнения', en: 'All exercises' },
+  'progress.filter.button': { ru: 'Упражнение', en: 'Exercise' },
+  'progress.volume.title': { ru: 'Общий объём, {unit}', en: 'Total volume, {unit}' },
+  'progress.volume.titleFor': { ru: 'Объём: {name}, {unit}', en: 'Volume: {name}, {unit}' },
+  'progress.duration.title': { ru: 'Общее время', en: 'Total duration' },
+  'progress.duration.titleFor': { ru: 'Время: {name}', en: 'Duration: {name}' },
+  'progress.chartLabel': { ru: 'График: {title}', en: 'Chart: {title}' },
 } satisfies Record<string, Entry>
 
 export type StringKey = keyof typeof catalog

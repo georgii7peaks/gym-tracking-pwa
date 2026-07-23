@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { buildExerciseIndex, buildProgressSeries, filterByRange } from './progress'
+import {
+  buildDurationSeries,
+  buildExerciseIndex,
+  buildVolumeSeries,
+  filterByRange,
+} from './progress'
 import type { ExerciseLog, SetEntry, WorkoutSession } from './types'
 
 function session(partial: Partial<WorkoutSession> & { id: string; startedAt: number }): WorkoutSession {
@@ -24,75 +29,59 @@ function set(partial: Partial<SetEntry> & { id: string; exerciseLogId: string })
   }
 }
 
-describe('buildProgressSeries', () => {
+describe('buildVolumeSeries', () => {
+  it('sums weight×reps over done sets, one point per session', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l1', sessionId: 's1' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5 }), // 500
+      set({ id: 'set2', exerciseLogId: 'l1', weightKg: 60, reps: 10 }), // 600
+    ]
+    const series = buildVolumeSeries(logs, sets, sessions)
+    expect(series.metric).toBe('weightReps')
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 1100 }])
+  })
+
   it('counts only done sets', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [log({ id: 'l1', sessionId: 's1' })]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, done: true }),
-      set({ id: 'set2', exerciseLogId: 'l1', weightKg: 999, done: false }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5, done: true }),
+      set({ id: 'set2', exerciseLogId: 'l1', weightKg: 999, reps: 9, done: false }),
     ]
-    const series = buildProgressSeries('Bench press', logs, sets, sessions)
-    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 100 }])
+    const series = buildVolumeSeries(logs, sets, sessions)
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 500 }])
   })
 
-  it('takes the max weightKg among a session’s done sets', () => {
-    const sessions = [session({ id: 's1', startedAt: 1000 })]
-    const logs = [log({ id: 'l1', sessionId: 's1' })]
-    const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l1', weightKg: 80 }),
-      set({ id: 'set3', exerciseLogId: 'l1', weightKg: 70 }),
-    ]
-    const series = buildProgressSeries('Bench press', logs, sets, sessions)
-    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 80 }])
-  })
-
-  it('takes the max durationSec for a duration exercise', () => {
-    const sessions = [session({ id: 's1', startedAt: 1000 })]
-    const logs = [log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' })]
-    const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 30 }),
-      set({ id: 'set2', exerciseLogId: 'l1', durationSec: 45 }),
-    ]
-    const series = buildProgressSeries('Plank', logs, sets, sessions)
-    expect(series.metric).toBe('duration')
-    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 45 }])
-  })
-
-  it('aggregates multiple logs of the same name within one session', () => {
+  it('ignores duration sets — only weightReps logs contribute', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [
-      log({ id: 'l1', sessionId: 's1' }),
-      log({ id: 'l2', sessionId: 's1' }),
+      log({ id: 'l1', sessionId: 's1', name: 'Bench press', metric: 'weightReps' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Plank', metric: 'duration' }),
     ]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 90 }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 40, reps: 5 }), // 200
+      set({ id: 'set2', exerciseLogId: 'l2', durationSec: 60 }), // ignored
     ]
-    const series = buildProgressSeries('Bench press', logs, sets, sessions)
-    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 90 }])
+    const series = buildVolumeSeries(logs, sets, sessions)
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 200 }])
   })
 
-  it('resolves mixed metrics to the most recently trained log, excluding the other metric', () => {
-    const sessions = [
-      session({ id: 's1', startedAt: 1000 }),
-      session({ id: 's2', startedAt: 2000 }),
-    ]
+  it('aggregates across multiple exercises within one session', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [
-      log({ id: 'l1', sessionId: 's1', metric: 'duration', name: 'Row' }),
-      log({ id: 'l2', sessionId: 's2', metric: 'weightReps', name: 'Row' }),
+      log({ id: 'l1', sessionId: 's1', name: 'Bench press' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Squat' }),
     ]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50 }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60, reps: 5 }), // 300
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500
     ]
-    const series = buildProgressSeries('Row', logs, sets, sessions)
-    expect(series.metric).toBe('weightReps')
-    expect(series.points).toEqual([{ sessionId: 's2', startedAt: 2000, value: 50 }])
+    const series = buildVolumeSeries(logs, sets, sessions)
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 800 }])
   })
 
-  it('sorts points oldest first regardless of input order', () => {
+  it('keeps sessions separate and sorts oldest first', () => {
     const sessions = [
       session({ id: 's2', startedAt: 2000 }),
       session({ id: 's1', startedAt: 1000 }),
@@ -102,33 +91,85 @@ describe('buildProgressSeries', () => {
       log({ id: 'l1', sessionId: 's1' }),
     ]
     const sets = [
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100 }),
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 90 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500 @ 2000
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 90, reps: 5 }), // 450 @ 1000
     ]
-    const series = buildProgressSeries('Bench press', logs, sets, sessions)
-    expect(series.points.map((p) => p.startedAt)).toEqual([1000, 2000])
+    const series = buildVolumeSeries(logs, sets, sessions)
+    expect(series.points).toEqual([
+      { sessionId: 's1', startedAt: 1000, value: 450 },
+      { sessionId: 's2', startedAt: 2000, value: 500 },
+    ])
   })
 
-  it('picks up the weight unit of the most recently trained log', () => {
-    const sessions = [
-      session({ id: 's1', startedAt: 1000 }),
-      session({ id: 's2', startedAt: 2000 }),
-    ]
+  it('scopes to a single exercise when a name is given', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [
-      log({ id: 'l1', sessionId: 's1', weightUnit: 'kg' }),
-      log({ id: 'l2', sessionId: 's2', weightUnit: 'lb' }),
+      log({ id: 'l1', sessionId: 's1', name: 'Bench press' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Squat' }),
     ]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 70 }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60, reps: 5 }), // 300
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500
     ]
-    const series = buildProgressSeries('Bench press', logs, sets, sessions)
-    expect(series.weightUnit).toBe('lb')
+    const series = buildVolumeSeries(logs, sets, sessions, 'Squat')
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 500 }])
   })
 
-  it('returns an empty series for an unknown exercise', () => {
-    const series = buildProgressSeries('Nope', [], [], [])
-    expect(series.points).toEqual([])
+  it('is empty when no weightReps sets are done', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' })]
+    const sets = [set({ id: 'set1', exerciseLogId: 'l1', durationSec: 30 })]
+    expect(buildVolumeSeries(logs, sets, sessions).points).toEqual([])
+  })
+})
+
+describe('buildDurationSeries', () => {
+  it('sums durationSec over done duration sets, one point per session', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 30 }),
+      set({ id: 'set2', exerciseLogId: 'l1', durationSec: 45 }),
+    ]
+    const series = buildDurationSeries(logs, sets, sessions)
+    expect(series.metric).toBe('duration')
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 75 }])
+  })
+
+  it('counts only done sets and ignores weightReps logs', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [
+      log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Bench press', metric: 'weightReps' }),
+    ]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 40, done: true }),
+      set({ id: 'set2', exerciseLogId: 'l1', durationSec: 999, done: false }),
+      set({ id: 'set3', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // ignored
+    ]
+    const series = buildDurationSeries(logs, sets, sessions)
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 40 }])
+  })
+
+  it('scopes to a single exercise when a name is given', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [
+      log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Wall sit', metric: 'duration' }),
+    ]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 60 }),
+      set({ id: 'set2', exerciseLogId: 'l2', durationSec: 90 }),
+    ]
+    const series = buildDurationSeries(logs, sets, sessions, 'Wall sit')
+    expect(series.points).toEqual([{ sessionId: 's1', startedAt: 1000, value: 90 }])
+  })
+
+  it('is empty when no duration sets are done', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l1', sessionId: 's1' })]
+    const sets = [set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5 })]
+    expect(buildDurationSeries(logs, sets, sessions).points).toEqual([])
   })
 })
 
@@ -175,6 +216,23 @@ describe('buildExerciseIndex', () => {
     const [entry] = buildExerciseIndex(logs, sets, sessions)
     expect(entry.sessionCount).toBe(2)
     expect(entry.lastTrainedAt).toBe(2000)
+  })
+
+  it('resolves a mixed-metric name to its most recently trained log', () => {
+    const sessions = [
+      session({ id: 's1', startedAt: 1000 }),
+      session({ id: 's2', startedAt: 2000 }),
+    ]
+    const logs = [
+      log({ id: 'l1', sessionId: 's1', metric: 'duration', name: 'Row' }),
+      log({ id: 'l2', sessionId: 's2', metric: 'weightReps', name: 'Row' }),
+    ]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 60 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50, reps: 5 }),
+    ]
+    const [entry] = buildExerciseIndex(logs, sets, sessions)
+    expect(entry.metric).toBe('weightReps')
   })
 })
 
