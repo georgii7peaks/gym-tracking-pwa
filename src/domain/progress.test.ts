@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   bodyWeightDelta,
+  bodyWeightEntriesForPoint,
   buildBodyWeightSeries,
   buildDurationSeries,
   buildExerciseIndex,
@@ -354,6 +355,40 @@ describe('groupBodyWeightPoints', () => {
   it('is empty for empty input', () => {
     expect(groupBodyWeightPoints([], 'day')).toEqual([])
     expect(groupBodyWeightPoints([], 'week')).toEqual([])
+  })
+})
+
+describe('bodyWeightEntriesForPoint', () => {
+  const raw = [
+    { id: 'a', at: at(2026, 7, 27, 8), value: 78 },
+    { id: 'b', at: at(2026, 7, 27, 20), value: 79 },
+    { id: 'c', at: at(2026, 7, 29, 8), value: 76 },
+    { id: 'd', at: at(2026, 8, 3, 8), value: 75 }, // next week
+  ]
+
+  it('"raw": the point IS the entry (matched by id)', () => {
+    expect(bodyWeightEntriesForPoint(raw, raw[2], 'raw')).toEqual([raw[2]])
+  })
+
+  it('"day": every weigh-in of that day, newest first', () => {
+    const [dayPoint] = groupBodyWeightPoints(raw, 'day')
+    expect(bodyWeightEntriesForPoint(raw, dayPoint, 'day')).toEqual([raw[1], raw[0]])
+  })
+
+  it('"week": spans Monday–Sunday and excludes a neighbouring bucket', () => {
+    const [weekPoint] = groupBodyWeightPoints(raw, 'week')
+    // 27 Jul (Mon) … 29 Jul are one week; 3 Aug opens the next one.
+    expect(bodyWeightEntriesForPoint(raw, weekPoint, 'week').map((p) => p.id)).toEqual([
+      'c',
+      'b',
+      'a',
+    ])
+  })
+
+  it('is empty for a point that no longer resolves to anything', () => {
+    const deleted = { id: 'gone', at: at(2026, 7, 27, 8), value: 78 }
+    expect(bodyWeightEntriesForPoint(raw, deleted, 'raw')).toEqual([])
+    expect(bodyWeightEntriesForPoint([], { id: 'd-1', at: 1, value: 78 }, 'day')).toEqual([])
   })
 })
 

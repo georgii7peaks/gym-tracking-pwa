@@ -11,6 +11,7 @@ import {
   clampWeightKg,
   isValidBodyWeight,
   isValidDuration,
+  isValidMeasuredAt,
   sanitizeName,
 } from '@/domain/validation'
 import type { StarterProgram } from '@/domain/starterPrograms'
@@ -450,17 +451,46 @@ export async function getPreviousSet(
 const round2 = (kg: number) => Math.round(kg * 100) / 100
 
 /**
- * Record the user's current body weight. Every save is a NEW entry (no per-day
- * upsert) stamped with the full save timestamp — that is what makes day/week
- * bucketing possible. Returns null when the value is rejected.
+ * Record a body weight. Every save is a NEW entry (no per-day upsert) stamped
+ * with `measuredAt` — that is what makes day/week bucketing possible. Defaults
+ * to "now"; an explicit past instant back-dates a forgotten weigh-in. Returns
+ * null when the weight or the date is rejected.
  */
-export async function logBodyWeight(weightKg: number): Promise<BodyWeightEntry | null> {
-  if (!isValidBodyWeight(weightKg)) return null
+export async function logBodyWeight(
+  weightKg: number,
+  measuredAt?: number
+): Promise<BodyWeightEntry | null> {
   const ts = now()
+  const measured = measuredAt ?? ts
+  if (!isValidBodyWeight(weightKg) || !isValidMeasuredAt(measured, ts)) return null
   const entry: BodyWeightEntry = {
     id: newId(),
     weightKg: round2(weightKg),
-    measuredAt: ts,
+    measuredAt: measured,
+    updatedAt: ts,
+  }
+  await repo.bodyWeightEntries.put(entry)
+  notifyDataChanged()
+  return entry
+}
+
+/**
+ * Correct an existing weigh-in: its weight, its date/time, or both. `updatedAt`
+ * is always stamped "now" (last-write-wins sync), `measuredAt` is what the user
+ * picked. Returns null for an unknown entry or rejected input.
+ */
+export async function updateBodyWeightEntry(
+  id: string,
+  changes: { weightKg: number; measuredAt: number }
+): Promise<BodyWeightEntry | null> {
+  const existing = await repo.bodyWeightEntries.get(id)
+  if (!existing) return null
+  const ts = now()
+  if (!isValidBodyWeight(changes.weightKg) || !isValidMeasuredAt(changes.measuredAt, ts)) return null
+  const entry: BodyWeightEntry = {
+    ...existing,
+    weightKg: round2(changes.weightKg),
+    measuredAt: changes.measuredAt,
     updatedAt: ts,
   }
   await repo.bodyWeightEntries.put(entry)

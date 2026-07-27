@@ -17,6 +17,7 @@ import {
   reorderRoutineDays,
   resumeSession,
   startSessionFromDay,
+  updateBodyWeightEntry,
 } from './operations'
 import { STARTER_PROGRAMS } from '@/domain/starterPrograms'
 import type { ExerciseLog } from '@/domain/types'
@@ -270,5 +271,45 @@ describe('operations — body weight', () => {
     await deleteBodyWeightEntry(entry!.id)
     expect(await repo.bodyWeightEntries.listChronological()).toHaveLength(0)
     expect(await repo.bodyWeightEntries.latest()).toBeUndefined()
+  })
+
+  it('back-dates an entry when an explicit measuredAt is given', async () => {
+    const yesterday = Date.now() - 86_400_000
+    const entry = await logBodyWeight(78, yesterday)
+    expect(entry!.measuredAt).toBe(yesterday)
+    // updatedAt is always "now" — sync is last-write-wins on that field.
+    expect(entry!.updatedAt).toBeGreaterThan(yesterday)
+  })
+
+  it('rejects a weigh-in dated in the future (nothing saved)', async () => {
+    expect(await logBodyWeight(78, Date.now() + 3_600_000)).toBeNull()
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(0)
+  })
+
+  it('edits weight and date in place, keeping the id and bumping updatedAt', async () => {
+    const entry = await logBodyWeight(78, Date.now() - 86_400_000)
+    const newDate = Date.now() - 2 * 86_400_000
+
+    const updated = await updateBodyWeightEntry(entry!.id, { weightKg: 76.5, measuredAt: newDate })
+
+    expect(updated!.id).toBe(entry!.id)
+    expect(updated!.weightKg).toBe(76.5)
+    expect(updated!.measuredAt).toBe(newDate)
+    expect(updated!.updatedAt).toBeGreaterThanOrEqual(entry!.updatedAt)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(1)
+  })
+
+  it('rejects an edit with an unknown id, an invalid weight or a future date', async () => {
+    const entry = await logBodyWeight(78)
+    const at = entry!.measuredAt
+
+    expect(await updateBodyWeightEntry('nope', { weightKg: 76, measuredAt: at })).toBeNull()
+    expect(await updateBodyWeightEntry(entry!.id, { weightKg: 0, measuredAt: at })).toBeNull()
+    expect(
+      await updateBodyWeightEntry(entry!.id, { weightKg: 76, measuredAt: Date.now() + 3_600_000 })
+    ).toBeNull()
+
+    // The original survives untouched.
+    expect((await repo.bodyWeightEntries.get(entry!.id))!.weightKg).toBe(78)
   })
 })

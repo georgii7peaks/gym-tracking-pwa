@@ -5,7 +5,7 @@
 // AC1-AC10). Mirrors flow.test.tsx: real UI, offline, seeded via the operations
 // layer.
 import { describe, it, expect } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '@/test/renderApp'
 import {
@@ -20,6 +20,7 @@ import { getWorkoutScreen } from '@/data/queries'
 import { repository as repo } from '@/data/dexie-repository'
 import { setPreference } from '@/prefs/preferences'
 import { translate } from '@/i18n/strings'
+import { toDateTimeLocalValue } from '@/lib/datetime'
 
 const DAY_MS = 86_400_000
 
@@ -176,13 +177,39 @@ function thisMonday(): number {
 }
 
 /** Log one weight through the real UI: open the dialog, replace the value, save. */
-async function logWeightViaUI(user: ReturnType<typeof userEvent.setup>, value: string) {
+async function logWeightViaUI(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+  /** Optional "YYYY-MM-DDTHH:mm" — back-dates the weigh-in (default: now). */
+  dateValue?: string
+) {
   await user.click(screen.getByRole('button', { name: ru('progress.bodyWeight.log') }))
   const dialog = await screen.findByRole('dialog', { name: ru('progress.bodyWeight.dialogTitle') })
   const field = within(dialog).getByRole('textbox')
   await user.clear(field)
   await user.type(field, value)
+  if (dateValue !== undefined) setDateField(dialog, dateValue)
   await user.click(within(dialog).getByRole('button', { name: ru('common.save') }))
+}
+
+/**
+ * jsdom renders `datetime-local` as a plain text input with no value parsing,
+ * so the value is set wholesale rather than typed.
+ */
+function setDateField(dialog: HTMLElement, value: string) {
+  const input = within(dialog).getByLabelText(ru('progress.bodyWeight.dateField'))
+  fireEvent.change(input, { target: { value } })
+}
+
+/** Tap a chart point, then open the Drawer with the entries behind it. */
+async function openPointDrawer(
+  user: ReturnType<typeof userEvent.setup>,
+  point: Element,
+  title: 'pointTitle' | 'pointTitleDay' | 'pointTitleWeek' = 'pointTitle'
+): Promise<HTMLElement> {
+  await user.click(point)
+  await user.click(await screen.findByRole('button', { name: /Действия с запис/ }))
+  return screen.findByRole('dialog', { name: ru(`progress.bodyWeight.${title}`) })
 }
 
 describe('Progress tab — body weight', () => {
@@ -226,7 +253,7 @@ describe('Progress tab — body weight', () => {
     expect(screen.getByText(`${MINUS}2.5 кг`)).toBeInTheDocument()
   })
 
-  it('averages same-day weigh-ins into one point in "По дням", history still lists both', async () => {
+  it('averages same-day weigh-ins into one point in "По дням", both stay reachable', async () => {
     const user = userEvent.setup()
     renderApp('/progress')
     await screen.findByRole('heading', { name: ru('progress.bodyWeight.title') })
@@ -241,12 +268,11 @@ describe('Progress tab — body weight', () => {
     expect(grouped[0].getAttribute('aria-label')).toMatch(/78\.5/)
     expect(screen.getByText(ru('progress.bodyWeight.avg.day'))).toBeInTheDocument()
 
-    // The drawer always lists RAW entries — deleting needs real entry ids.
-    await user.click(screen.getByRole('button', { name: ru('progress.bodyWeight.history') }))
-    const drawer = await screen.findByRole('dialog', {
-      name: ru('progress.bodyWeight.historyTitle'),
-    })
+    // The point's Drawer always lists the RAW entries behind the average —
+    // editing and deleting need real entry ids.
+    const drawer = await openPointDrawer(user, grouped[0], 'pointTitleDay')
     expect(within(drawer).getAllByRole('button', { name: /Удалить:/ })).toHaveLength(2)
+    expect(within(drawer).getAllByRole('button', { name: /Изменить:/ })).toHaveLength(2)
   })
 
   it('collapses a week of weigh-ins into one point in "По неделям"', async () => {
@@ -266,17 +292,24 @@ describe('Progress tab — body weight', () => {
     expect(screen.getByText(ru('progress.bodyWeight.avg.week'))).toBeInTheDocument()
   })
 
-  it('deletes an entry from the History drawer', async () => {
+  it('has no History button — the chart point is the way in', async () => {
+    await seedWeight('recent', 78, Date.now() - HOUR_MS)
+    renderApp('/progress')
+    await bodyWeightPoints(1)
+
+    expect(screen.queryByRole('button', { name: 'История' })).not.toBeInTheDocument()
+    // Nothing is selected yet, so no action button either.
+    expect(screen.queryByRole('button', { name: /Действия с запис/ })).not.toBeInTheDocument()
+  })
+
+  it('deletes an entry from its point Drawer, then deselects the vanished point', async () => {
     const user = userEvent.setup()
     await seedWeight('old', 80, Date.now() - 3 * DAY_MS)
     await seedWeight('recent', 78, Date.now() - HOUR_MS)
     renderApp('/progress')
-    await bodyWeightPoints(2)
+    const plotted = await bodyWeightPoints(2)
 
-    await user.click(screen.getByRole('button', { name: ru('progress.bodyWeight.history') }))
-    const drawer = await screen.findByRole('dialog', {
-      name: ru('progress.bodyWeight.historyTitle'),
-    })
+    const drawer = await openPointDrawer(user, plotted[1])
     await user.click(within(drawer).getByRole('button', { name: /Удалить: 78 кг/ }))
 
     const confirm = await screen.findByRole('dialog', {
@@ -285,6 +318,70 @@ describe('Progress tab — body weight', () => {
     await user.click(within(confirm).getByRole('button', { name: ru('common.delete') }))
 
     await bodyWeightPoints(1)
+    // Its last entry is gone: the Drawer closes and the chart drops the
+    // selection instead of highlighting the neighbouring point.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: ru('progress.bodyWeight.pointTitle') })
+      ).not.toBeInTheDocument()
+    )
+    expect(screen.queryByRole('button', { name: /Действия с запис/ })).not.toBeInTheDocument()
+  })
+
+  it('edits a weigh-in from its point Drawer', async () => {
+    const user = userEvent.setup()
+    await seedWeight('recent', 78, Date.now() - HOUR_MS)
+    renderApp('/progress')
+    const plotted = await bodyWeightPoints(1)
+
+    const drawer = await openPointDrawer(user, plotted[0])
+    await user.click(within(drawer).getByRole('button', { name: /Изменить: 78 кг/ }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: ru('progress.bodyWeight.editDialogTitle'),
+    })
+    const field = within(dialog).getByRole('textbox')
+    expect(field).toHaveValue('78') // prefilled from the entry, not from "latest"
+    await user.clear(field)
+    await user.type(field, '76.5')
+    await user.click(within(dialog).getByRole('button', { name: ru('common.save') }))
+
+    // Same entry, new value: still one point, and the header follows it. The
+    // Drawer stays open (its row now reads 76.5 too), so scope to the header.
+    const updated = await bodyWeightPoints(1)
+    await waitFor(() => expect(updated[0].getAttribute('aria-label')).toMatch(/76\.5/))
+    const header = screen.getByText(ru('progress.bodyWeight.current')).parentElement!
+    expect(within(header).getByText('76.5 кг')).toBeInTheDocument()
+  })
+
+  it('back-dates a new weigh-in, which then is not the current weight', async () => {
+    const user = userEvent.setup()
+    await seedWeight('recent', 78, Date.now() - HOUR_MS)
+    renderApp('/progress')
+    await bodyWeightPoints(1)
+
+    await logWeightViaUI(user, '85', toDateTimeLocalValue(Date.now() - 5 * DAY_MS))
+
+    await bodyWeightPoints(2)
+    // 85 kg landed five days back, so "Текущий вес" is still the 78 kg weigh-in.
+    expect(screen.getByText('78 кг')).toBeInTheDocument()
+    expect(screen.queryByText('85 кг')).not.toBeInTheDocument()
+  })
+
+  it('refuses a future date: Save is disabled with an inline error', async () => {
+    const user = userEvent.setup()
+    renderApp('/progress')
+    await screen.findByRole('heading', { name: ru('progress.bodyWeight.title') })
+
+    await user.click(screen.getByRole('button', { name: ru('progress.bodyWeight.log') }))
+    const dialog = await screen.findByRole('dialog', {
+      name: ru('progress.bodyWeight.dialogTitle'),
+    })
+    await user.type(within(dialog).getByRole('textbox'), '80')
+    setDateField(dialog, toDateTimeLocalValue(Date.now() + DAY_MS))
+
+    expect(within(dialog).getByRole('button', { name: ru('common.save') })).toBeDisabled()
+    expect(screen.getByText(ru('progress.bodyWeight.dateFuture'))).toBeInTheDocument()
   })
 
   it('narrows the body-weight chart with the shared range chips', async () => {

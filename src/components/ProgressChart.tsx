@@ -4,7 +4,7 @@
 // with no extra logic. Mobile has no hover, so a tap/focus on a point is the
 // only way to read its exact value — the caption below the chart is that
 // readout (see the plan's "Point inspection" assumption).
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { ProgressPoint } from '@/domain/progress'
 
 interface ProgressChartProps {
@@ -19,6 +19,11 @@ interface ProgressChartProps {
    * flattening against a 0 baseline.
    */
   baseline?: 'zero' | 'auto'
+  /**
+   * Optional action rendered under the readout caption while a point is
+   * selected — the chart itself stays generic (Volume/Duration pass nothing).
+   */
+  renderPointAction?: (point: ProgressPoint) => ReactNode
 }
 
 const VIEW_W = 320
@@ -59,8 +64,12 @@ export function ProgressChart({
   formatDate,
   ariaLabel,
   baseline = 'zero',
+  renderPointAction,
 }: ProgressChartProps) {
-  const [selected, setSelected] = useState<number | null>(null)
+  // Keyed by point id, not by index: after a delete or a grouping switch an
+  // index would silently highlight a DIFFERENT point, while an id that no
+  // longer exists simply resolves to "nothing selected".
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   if (points.length === 0) return null
 
   const values = points.map((p) => p.value)
@@ -81,8 +90,8 @@ export function ProgressChart({
     .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
     .join(' ')
   const dense = points.length > DENSE_THRESHOLD
-  const active = selected !== null ? coords[selected] : undefined
-  const toggle = (i: number) => setSelected((prev) => (prev === i ? null : i))
+  const active = coords.find((c) => c.point.id === selectedId)
+  const toggle = (id: string) => setSelectedId((prev) => (prev === id ? null : id))
 
   return (
     <div className="flex flex-col gap-2 border-2 border-border bg-card p-3 shadow-retro">
@@ -149,8 +158,8 @@ export function ProgressChart({
           />
         )}
 
-        {coords.map((c, i) => {
-          const isSelected = selected === i
+        {coords.map((c) => {
+          const isSelected = selectedId === c.point.id
           const showMarker = !dense || isSelected
           return (
             <g key={c.point.id}>
@@ -177,11 +186,11 @@ export function ProgressChart({
                 tabIndex={0}
                 role="button"
                 aria-label={`${formatDate(c.point.at)}: ${formatValue(c.point.value)}`}
-                onClick={() => toggle(i)}
+                onClick={() => toggle(c.point.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    toggle(i)
+                    toggle(c.point.id)
                   }
                 }}
                 style={{ cursor: 'pointer', outline: 'none' }}
@@ -194,6 +203,7 @@ export function ProgressChart({
       <p className="min-h-[1.25rem] text-center font-mono text-sm font-bold" aria-live="polite">
         {active ? `${formatValue(active.point.value)} — ${formatDate(active.point.at)}` : ' '}
       </p>
+      {active && renderPointAction?.(active.point)}
     </div>
   )
 }

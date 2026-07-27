@@ -30,8 +30,13 @@ export function clampWeightKg(kg: number): number {
 /**
  * A Body Weight Entry must be strictly positive — deliberately NOT clampWeightKg,
  * which allows 0 for bodyweight sets. Soft validation: no upper bound, so a typo
- * is fixed by deleting the entry rather than by being refused up front.
+ * is corrected afterwards (edit or delete the entry) rather than refused up front.
  */
 export function isValidBodyWeight(kg: number): boolean {
   return Number.isFinite(kg) && kg > 0
+}
+
+/** A weigh-in cannot be recorded in the future; any past instant is allowed. */
+export function isValidMeasuredAt(ms: number, nowMs: number): boolean {
+  return Number.isFinite(ms) && ms <= nowMs
 }

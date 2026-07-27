@@ -213,6 +213,16 @@ function startOfLocalWeek(ms: number): number {
 }
 
 /**
+ * The single source of bucket truth: which instant a grouping collapses a
+ * weigh-in onto. Shared by the grouper and by bodyWeightEntriesForPoint, so a
+ * plotted average and the entries behind it can never disagree.
+ */
+const BUCKET_START: Record<Exclude<BodyWeightGrouping, 'raw'>, (ms: number) => number> = {
+  day: startOfLocalDay,
+  week: startOfLocalWeek,
+}
+
+/**
  * Collapse points into local day / week buckets, each plotted at its bucket
  * START with the ARITHMETIC MEAN of the weigh-ins inside it (averaging in
  * canonical kg keeps kg and lb consistent). Empty buckets are not gap-filled —
@@ -227,7 +237,7 @@ export function groupBodyWeightPoints(
   grouping: BodyWeightGrouping
 ): ProgressPoint[] {
   if (grouping === 'raw') return points
-  const startOf = grouping === 'day' ? startOfLocalDay : startOfLocalWeek
+  const startOf = BUCKET_START[grouping]
   const prefix = grouping === 'day' ? 'd' : 'w'
 
   const buckets = new Map<number, { sum: number; count: number }>()
@@ -245,6 +255,29 @@ export function groupBodyWeightPoints(
   return [...buckets.entries()]
     .map(([at, { sum, count }]) => ({ id: `${prefix}-${at}`, at, value: sum / count }))
     .sort((a, b) => a.at - b.at)
+}
+
+/**
+ * The RAW entries behind a plotted point, newest first. In `'raw'` the point IS
+ * the entry (id match); in `'day'`/`'week'` it is a bucket average, so every raw
+ * point whose bucket start equals the point's `at` is returned. Empty when the
+ * point no longer resolves to anything (it was just deleted, or the grouping
+ * changed under it).
+ *
+ * Pass the SAME range-filtered list that was grouped — resolving against the
+ * unfiltered list would list weigh-ins that were never averaged into the point.
+ */
+export function bodyWeightEntriesForPoint(
+  points: ProgressPoint[],
+  point: ProgressPoint,
+  grouping: BodyWeightGrouping
+): ProgressPoint[] {
+  if (grouping === 'raw') {
+    const match = points.find((p) => p.id === point.id)
+    return match ? [match] : []
+  }
+  const startOf = BUCKET_START[grouping]
+  return points.filter((p) => startOf(p.at) === point.at).sort((a, b) => b.at - a.at)
 }
 
 /**

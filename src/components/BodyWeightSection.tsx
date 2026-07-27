@@ -1,20 +1,23 @@
 // Body Weight card on the Progress tab (docs/plans/body-weight-progress.md
-// step 7). Independent of the exercise filter and usable before the first
-// workout ever happens. The Y axis auto-scales so a 2 kg trend is actually
-// visible, and the weigh-ins can be read raw or as daily / weekly averages.
+// step 7, reworked by docs/plans/body-weight-point-actions.md). Independent of
+// the exercise filter and usable before the first workout ever happens. The Y
+// axis auto-scales so a 2 kg trend is actually visible, and the weigh-ins can
+// be read raw or as daily / weekly averages. A wrong weigh-in is fixed through
+// the chart itself: tap a point → act on the entries behind it.
 import { useState } from 'react'
 import { Button } from './ui/Button'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { ProgressChart } from './ProgressChart'
 import { BodyWeightDialog } from './BodyWeightDialog'
-import { BodyWeightHistoryDrawer } from './BodyWeightHistoryDrawer'
+import { BodyWeightPointDrawer } from './BodyWeightPointDrawer'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useWeightUnit } from '@/prefs/useWeightUnit'
 import { formatWeightValue } from '@/domain/weight'
 import { formatSessionDate } from '@/lib/datetime'
-import { logBodyWeight } from '@/data/operations'
+import { deleteBodyWeightEntry, logBodyWeight, updateBodyWeightEntry } from '@/data/operations'
 import {
   bodyWeightDelta,
+  bodyWeightEntriesForPoint,
   filterByRange,
   groupBodyWeightPoints,
   type BodyWeightGrouping,
@@ -34,19 +37,34 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
   const { unit, unitLabel } = useWeightUnit()
   const [grouping, setGrouping] = useState<BodyWeightGrouping>('raw')
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  /** The plotted point whose Drawer is open (a raw entry or a bucket average). */
+  const [actionPoint, setActionPoint] = useState<ProgressPoint | null>(null)
+  /** The raw entry being edited, stacked on top of the Drawer. */
+  const [editing, setEditing] = useState<ProgressPoint | null>(null)
 
   // Filter by range FIRST, then group — a bucket must never mix in weigh-ins
-  // from outside the selected range.
-  const plotted = groupBodyWeightPoints(filterByRange(points, range, Date.now()), grouping)
+  // from outside the selected range. The filtered list is kept: resolving a
+  // point back to its entries has to run against exactly what was grouped.
+  const rangeFiltered = filterByRange(points, range, Date.now())
+  const plotted = groupBodyWeightPoints(rangeFiltered, grouping)
   // "Current" is always the latest RAW entry: never averaged, never range-filtered.
   const latest = points[points.length - 1]
   const delta = bodyWeightDelta(plotted)
 
+  const entriesFor = (point: ProgressPoint) =>
+    bodyWeightEntriesForPoint(rangeFiltered, point, grouping)
+  // Derived from live data every render: once the last entry behind the open
+  // point is gone (deleted, or re-dated out of the bucket) the Drawer closes.
+  const entries = actionPoint ? entriesFor(actionPoint) : []
+
   const chartTitle = t('progress.bodyWeight.chartTitle', { unit: unitLabel })
-  const save = async (weightKg: number) => {
-    await logBodyWeight(weightKg)
+  const save = async (weightKg: number, measuredAt: number) => {
+    await logBodyWeight(weightKg, measuredAt)
     setDialogOpen(false)
+  }
+  const saveEdit = async (weightKg: number, measuredAt: number) => {
+    if (editing) await updateBodyWeightEntry(editing.id, { weightKg, measuredAt })
+    setEditing(null)
   }
 
   return (
@@ -102,6 +120,15 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
             formatValue={(kg) => formatWeightValue(kg, unit)}
             formatDate={(ms) => formatSessionDate(ms, language)}
             ariaLabel={t('progress.chartLabel', { title: chartTitle })}
+            renderPointAction={(point) => (
+              <Button variant="secondary" className="w-full" onClick={() => setActionPoint(point)}>
+                {t(
+                  entriesFor(point).length > 1
+                    ? 'progress.bodyWeight.pointActionsMany'
+                    : 'progress.bodyWeight.pointActions'
+                )}
+              </Button>
+            )}
           />
           {grouping !== 'raw' && (
             // An averaged point is not a real weigh-in — say so.
@@ -116,14 +143,9 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
         </p>
       )}
 
-      <div className="flex gap-3">
-        <Button className="flex-1" onClick={() => setDialogOpen(true)}>
-          {t('progress.bodyWeight.log')}
-        </Button>
-        <Button variant="secondary" className="flex-1" onClick={() => setHistoryOpen(true)}>
-          {t('progress.bodyWeight.history')}
-        </Button>
-      </div>
+      <Button className="w-full" onClick={() => setDialogOpen(true)}>
+        {t('progress.bodyWeight.log')}
+      </Button>
 
       <BodyWeightDialog
         open={dialogOpen}
@@ -131,10 +153,20 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
         onSubmit={save}
         onCancel={() => setDialogOpen(false)}
       />
-      <BodyWeightHistoryDrawer
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        points={points}
+      <BodyWeightDialog
+        open={editing !== null}
+        entry={editing ? { weightKg: editing.value, measuredAt: editing.at } : undefined}
+        latestKg={latest?.value}
+        onSubmit={saveEdit}
+        onCancel={() => setEditing(null)}
+      />
+      <BodyWeightPointDrawer
+        open={entries.length > 0}
+        onClose={() => setActionPoint(null)}
+        entries={entries}
+        grouping={grouping}
+        onEdit={setEditing}
+        onDelete={(id) => void deleteBodyWeightEntry(id)}
       />
     </section>
   )

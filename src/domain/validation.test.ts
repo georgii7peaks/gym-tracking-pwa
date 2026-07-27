@@ -4,6 +4,7 @@ import {
   clampWeightKg,
   isValidBodyWeight,
   isValidDuration,
+  isValidMeasuredAt,
   sanitizeName,
 } from './validation'
 
@@ -40,7 +41,15 @@ describe('validation (§3.4)', () => {
     expect(isValidBodyWeight(Number.NaN)).toBe(false)
     expect(isValidBodyWeight(Number.POSITIVE_INFINITY)).toBe(false)
     expect(isValidBodyWeight(78.4)).toBe(true)
-    // Soft validation: no upper bound (a typo is fixed by deleting the entry).
+    // Soft validation: no upper bound (a typo is corrected by editing the entry).
     expect(isValidBodyWeight(780)).toBe(true)
+  })
+
+  it('accepts any past weigh-in instant but never a future one', () => {
+    const now = Date.parse('2026-07-27T10:00:00Z')
+    expect(isValidMeasuredAt(now - 86_400_000, now)).toBe(true)
+    expect(isValidMeasuredAt(now, now)).toBe(true) // exactly now is fine
+    expect(isValidMeasuredAt(now + 60_000, now)).toBe(false)
+    expect(isValidMeasuredAt(Number.NaN, now)).toBe(false)
   })
 })
