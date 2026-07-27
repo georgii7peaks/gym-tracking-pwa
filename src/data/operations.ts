@@ -6,9 +6,16 @@ import { newId, now } from '@/domain/ids'
 import { nextOrder } from '@/domain/ordering'
 import { computePrefill } from '@/domain/prefill'
 import { startSession } from '@/domain/session'
-import { clampReps, clampWeightKg, isValidDuration, sanitizeName } from '@/domain/validation'
+import {
+  clampReps,
+  clampWeightKg,
+  isValidBodyWeight,
+  isValidDuration,
+  sanitizeName,
+} from '@/domain/validation'
 import type { StarterProgram } from '@/domain/starterPrograms'
 import type {
+  BodyWeightEntry,
   ExerciseLog,
   Metric,
   RoutineDay,
@@ -435,4 +442,33 @@ export async function getPreviousSet(
   session: WorkoutSession
 ): Promise<SetEntry | undefined> {
   return repo.sets.mostRecentByName(log.name, session.startedAt)
+}
+
+// ── Body Weight Entries (docs/plans/body-weight-progress.md) ─────────────────
+
+/** Round canonical kg to 2 decimals — keeps lb→kg float drift below display precision. */
+const round2 = (kg: number) => Math.round(kg * 100) / 100
+
+/**
+ * Record the user's current body weight. Every save is a NEW entry (no per-day
+ * upsert) stamped with the full save timestamp — that is what makes day/week
+ * bucketing possible. Returns null when the value is rejected.
+ */
+export async function logBodyWeight(weightKg: number): Promise<BodyWeightEntry | null> {
+  if (!isValidBodyWeight(weightKg)) return null
+  const ts = now()
+  const entry: BodyWeightEntry = {
+    id: newId(),
+    weightKg: round2(weightKg),
+    measuredAt: ts,
+    updatedAt: ts,
+  }
+  await repo.bodyWeightEntries.put(entry)
+  notifyDataChanged()
+  return entry
+}
+
+export async function deleteBodyWeightEntry(id: string): Promise<void> {
+  await repo.bodyWeightEntries.remove(id)
+  notifyDataChanged()
 }

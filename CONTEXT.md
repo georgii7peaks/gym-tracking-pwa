@@ -21,6 +21,9 @@ Canonical domain terms (carried over verbatim from the iOS build; UI uses friend
 - **Exercise Log** — an exercise inside a Workout Session; holds the performed Sets. _Avoid_: Performed/Logged Exercise.
 - **Set** — one performed unit within an Exercise Log: `weight × reps` or `duration`. _Avoid_: Rep, Round.
 
+### Body side (personal measurements)
+- **Body Weight Entry** — a dated record of the *user's own* body weight, stored canonically in kg. Belongs to neither the Routine nor the Workout aggregate; every save is a separate entry (no per-day upsert). _Avoid_: Weight (ambiguous with a Set's weight), Weigh-in, Measurement.
+
 ### Shared vocabulary
 - **Exercise Metric** — `weightReps` or `duration`. Set on both sides; an Exercise Log inherits it at copy time.
 - **Start a Session** — instantiates a Workout Session from a Routine Day, copying each Routine Exercise into a new Exercise Log (same order, name, metric). The only cross-aggregate operation. **No link back to the Routine Day is stored.**

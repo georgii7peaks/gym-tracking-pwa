@@ -7,10 +7,12 @@ import {
   addSet,
   applyStarterProgram,
   createRoutineDay,
+  deleteBodyWeightEntry,
   deleteRoutineDay,
   deleteSession,
   finishSession,
   getPreviousSet,
+  logBodyWeight,
   renameRoutineExercise,
   reorderRoutineDays,
   resumeSession,
@@ -231,5 +233,42 @@ describe('operations — auto-fill from the previous workout of the same type', 
     await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
     const s1 = await startSessionFromDay(day!.id)
     expect(await repo.sets.byLog((await firstLog(s1!.id)).id)).toHaveLength(0)
+  })
+})
+
+describe('operations — body weight', () => {
+  it('stores the canonical kg value rounded to 2 decimals', async () => {
+    // 173 lb → 78.4707… kg; rounding keeps the error below display precision.
+    const entry = await logBodyWeight(78.47070422)
+    expect(entry?.weightKg).toBe(78.47)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(1)
+  })
+
+  it('rejects a non-positive weight (nothing saved)', async () => {
+    expect(await logBodyWeight(0)).toBeNull()
+    expect(await logBodyWeight(-5)).toBeNull()
+    expect(await logBodyWeight(Number.NaN)).toBeNull()
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(0)
+  })
+
+  it('creates a separate entry per save, even on the same day', async () => {
+    const first = await logBodyWeight(78)
+    const second = await logBodyWeight(78.4)
+    expect(first!.id).not.toBe(second!.id)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(2)
+  })
+
+  it('stamps measuredAt with the save timestamp', async () => {
+    const before = Date.now()
+    const entry = await logBodyWeight(78)
+    expect(entry!.measuredAt).toBeGreaterThanOrEqual(before)
+    expect(entry!.measuredAt).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('hides a deleted entry from reads (soft delete)', async () => {
+    const entry = await logBodyWeight(78)
+    await deleteBodyWeightEntry(entry!.id)
+    expect(await repo.bodyWeightEntries.listChronological()).toHaveLength(0)
+    expect(await repo.bodyWeightEntries.latest()).toBeUndefined()
   })
 })

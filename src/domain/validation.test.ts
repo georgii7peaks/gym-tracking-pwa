@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { clampReps, clampWeightKg, isValidDuration, sanitizeName } from './validation'
+import {
+  clampReps,
+  clampWeightKg,
+  isValidBodyWeight,
+  isValidDuration,
+  sanitizeName,
+} from './validation'
 
 describe('validation (§3.4)', () => {
   it('trims names and rejects blank/whitespace-only', () => {
@@ -26,5 +32,15 @@ describe('validation (§3.4)', () => {
     expect(clampWeightKg(0)).toBe(0)
     expect(clampWeightKg(62.5)).toBe(62.5)
     expect(clampWeightKg(-10)).toBe(0)
+  })
+
+  it('rejects a non-positive body weight, accepts any positive one', () => {
+    expect(isValidBodyWeight(0)).toBe(false)
+    expect(isValidBodyWeight(-72)).toBe(false)
+    expect(isValidBodyWeight(Number.NaN)).toBe(false)
+    expect(isValidBodyWeight(Number.POSITIVE_INFINITY)).toBe(false)
+    expect(isValidBodyWeight(78.4)).toBe(true)
+    // Soft validation: no upper bound (a typo is fixed by deleting the entry).
+    expect(isValidBodyWeight(780)).toBe(true)
   })
 })

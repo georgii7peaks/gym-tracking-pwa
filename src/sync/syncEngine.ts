@@ -10,6 +10,7 @@ import { db as localDb } from '@/data/db'
 import { notifyDataChanged } from '@/data/changes'
 import { now } from '@/domain/ids'
 import type {
+  BodyWeightEntry,
   ExerciseLog,
   RoutineDay,
   RoutineExercise,
@@ -105,6 +106,13 @@ export async function runSync(uid: string): Promise<void> {
     )
     await pushCollection<ExerciseLog>(firestore, uid, 'exerciseLogs', localDb.exerciseLogs, sinceMs)
     await pushCollection<SetEntry>(firestore, uid, 'sets', localDb.sets, sinceMs)
+    await pushCollection<BodyWeightEntry>(
+      firestore,
+      uid,
+      'bodyWeightEntries',
+      localDb.bodyWeightEntries,
+      sinceMs
+    )
 
     const pulled = [
       await pullCollection<RoutineDay>(firestore, uid, 'routineDays', localDb.routineDays, sinceMs),
@@ -124,6 +132,13 @@ export async function runSync(uid: string): Promise<void> {
       ),
       await pullCollection<ExerciseLog>(firestore, uid, 'exerciseLogs', localDb.exerciseLogs, sinceMs),
       await pullCollection<SetEntry>(firestore, uid, 'sets', localDb.sets, sinceMs),
+      await pullCollection<BodyWeightEntry>(
+        firestore,
+        uid,
+        'bodyWeightEntries',
+        localDb.bodyWeightEntries,
+        sinceMs
+      ),
     ]
 
     setPreference('lastSyncedAt', startedAt)

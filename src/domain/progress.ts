@@ -1,8 +1,10 @@
-// Domain: whole-body progress series (Progress tab, docs/plans/progress-total-volume.md).
-// Pure aggregation over ExerciseLog + SetEntry + WorkoutSession, mirroring the
-// composite-query style already used by data/queries.ts. Totals are one point per
-// Workout Session; Volume stays canonical in kg (display converts).
-import type { ExerciseLog, Metric, SetEntry, WorkoutSession } from './types'
+// Domain: progress series over time for the Progress tab
+// (docs/plans/progress-total-volume.md + docs/plans/body-weight-progress.md).
+// Two families of series share one point type and one range filter: training
+// totals (pure aggregation over ExerciseLog + SetEntry + WorkoutSession, one
+// point per Workout Session) and Body Weight (one point per Body Weight Entry,
+// optionally averaged into day/week buckets). Both stay canonical in kg.
+import type { BodyWeightEntry, ExerciseLog, Metric, SetEntry, WorkoutSession } from './types'
 
 export interface TrackedExercise {
   name: string
@@ -11,9 +13,15 @@ export interface TrackedExercise {
   sessionCount: number
 }
 
+/**
+ * One plotted point. Deliberately neutral (`id`/`at` rather than
+ * `sessionId`/`startedAt`) so the same type serves volume, duration and body
+ * weight: `id` is the source record's id — or a synthetic bucket key when the
+ * point is an average (see groupBodyWeightPoints).
+ */
 export interface ProgressPoint {
-  sessionId: string
-  startedAt: number
+  id: string
+  at: number
   value: number
 }
 
@@ -128,13 +136,13 @@ function buildTotalSeries(
     if (!session) continue
     const prev = bySession.get(session.id)
     bySession.set(session.id, {
-      sessionId: session.id,
-      startedAt: session.startedAt,
+      id: session.id,
+      at: session.startedAt,
       value: (prev?.value ?? 0) + contribution(set),
     })
   }
 
-  const points = [...bySession.values()].sort((a, b) => a.startedAt - b.startedAt)
+  const points = [...bySession.values()].sort((a, b) => a.at - b.at)
   return { metric, points }
 }
 
@@ -172,5 +180,78 @@ export function filterByRange(
 ): ProgressPoint[] {
   if (range === 'all') return points
   const cutoff = nowMs - RANGE_DAYS[range] * DAY_MS
-  return points.filter((p) => p.startedAt >= cutoff)
+  return points.filter((p) => p.at >= cutoff)
+}
+
+// ── Body weight (docs/plans/body-weight-progress.md) ─────────────────────────
+
+/** How the body-weight points are read: raw weigh-ins, or per-bucket averages. */
+export type BodyWeightGrouping = 'raw' | 'day' | 'week'
+
+/**
+ * One point per Body Weight Entry, oldest first. Returns bare points rather
+ * than a ProgressSeries: `Metric` is weightReps|duration and body weight is
+ * neither. Values stay canonical kg (display converts).
+ */
+export function buildBodyWeightSeries(entries: BodyWeightEntry[]): ProgressPoint[] {
+  return entries
+    .map((e) => ({ id: e.id, at: e.measuredAt, value: e.weightKg }))
+    .sort((a, b) => a.at - b.at)
+}
+
+/** Local midnight of the day containing `ms` (DST-correct via the Date parts). */
+function startOfLocalDay(ms: number): number {
+  const d = new Date(ms)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+/** Local start of the ISO week (Monday) containing `ms`. */
+function startOfLocalWeek(ms: number): number {
+  const d = new Date(ms)
+  const daysSinceMonday = (d.getDay() + 6) % 7
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysSinceMonday).getTime()
+}
+
+/**
+ * Collapse points into local day / week buckets, each plotted at its bucket
+ * START with the ARITHMETIC MEAN of the weigh-ins inside it (averaging in
+ * canonical kg keeps kg and lb consistent). Empty buckets are not gap-filled —
+ * a zero would be a lie about body weight. Bucket ids are prefixed so they can
+ * never collide with an entry UUID. `'raw'` is a passthrough.
+ *
+ * Filter by range BEFORE grouping, so a bucket never mixes in weigh-ins from
+ * outside the selected range.
+ */
+export function groupBodyWeightPoints(
+  points: ProgressPoint[],
+  grouping: BodyWeightGrouping
+): ProgressPoint[] {
+  if (grouping === 'raw') return points
+  const startOf = grouping === 'day' ? startOfLocalDay : startOfLocalWeek
+  const prefix = grouping === 'day' ? 'd' : 'w'
+
+  const buckets = new Map<number, { sum: number; count: number }>()
+  for (const point of points) {
+    const bucketStart = startOf(point.at)
+    const bucket = buckets.get(bucketStart)
+    if (bucket) {
+      bucket.sum += point.value
+      bucket.count += 1
+    } else {
+      buckets.set(bucketStart, { sum: point.value, count: 1 })
+    }
+  }
+
+  return [...buckets.entries()]
+    .map(([at, { sum, count }]) => ({ id: `${prefix}-${at}`, at, value: sum / count }))
+    .sort((a, b) => a.at - b.at)
+}
+
+/**
+ * Change across the PLOTTED (already filtered + grouped) points: last − first.
+ * `undefined` with fewer than two points — there is no change to report.
+ */
+export function bodyWeightDelta(points: ProgressPoint[]): number | undefined {
+  if (points.length < 2) return undefined
+  return points[points.length - 1].value - points[0].value
 }

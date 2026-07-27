@@ -12,6 +12,13 @@ interface ProgressChartProps {
   formatValue: (value: number) => string
   formatDate: (ms: number) => string
   ariaLabel: string
+  /**
+   * Y-axis lower bound. `'zero'` (default) anchors the axis at 0 — right for
+   * totals, where the bar height IS the quantity. `'auto'` lets the axis follow
+   * the data, so a 78→76 kg body-weight trend fills the plot area instead of
+   * flattening against a 0 baseline.
+   */
+  baseline?: 'zero' | 'auto'
 }
 
 const VIEW_W = 320
@@ -29,29 +36,39 @@ function niceNum(range: number, round: boolean): number {
   return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * 10 ** exponent
 }
 
-/** ~4 rounded tick values spanning [min, max]; floored at 0 (weight/duration). */
-function niceTicks(min: number, max: number, count = 4): number[] {
+/**
+ * ~4 rounded tick values spanning [min, max]. With `floorAtZero` the lower tick
+ * is clamped to 0 (totals); without it the axis follows the data (body weight).
+ */
+function niceTicks(min: number, max: number, floorAtZero: boolean, count = 4): number[] {
   const pad = min === max ? Math.max(1, Math.abs(min) * 0.1) : 0
   const lo = min - pad
   const hi = max + pad
   const step = niceNum(niceNum(hi - lo, false) / (count - 1), true)
-  const niceMin = Math.max(0, Math.floor(lo / step) * step)
+  const dataMin = Math.floor(lo / step) * step
+  const niceMin = floorAtZero ? Math.max(0, dataMin) : dataMin
   const niceMax = Math.ceil(hi / step) * step
   const ticks: number[] = []
   for (let v = niceMin; v <= niceMax + step / 2; v += step) ticks.push(Math.round(v * 1e6) / 1e6)
   return ticks
 }
 
-export function ProgressChart({ points, formatValue, formatDate, ariaLabel }: ProgressChartProps) {
+export function ProgressChart({
+  points,
+  formatValue,
+  formatDate,
+  ariaLabel,
+  baseline = 'zero',
+}: ProgressChartProps) {
   const [selected, setSelected] = useState<number | null>(null)
   if (points.length === 0) return null
 
   const values = points.map((p) => p.value)
-  const ticks = niceTicks(Math.min(...values), Math.max(...values))
+  const ticks = niceTicks(Math.min(...values), Math.max(...values), baseline === 'zero')
   const yMin = ticks[0]
   const yMax = ticks[ticks.length - 1]
-  const xMin = points[0].startedAt
-  const xMax = points[points.length - 1].startedAt
+  const xMin = points[0].at
+  const xMax = points[points.length - 1].at
 
   const innerW = VIEW_W - PAD.left - PAD.right
   const innerH = VIEW_H - PAD.top - PAD.bottom
@@ -59,7 +76,7 @@ export function ProgressChart({ points, formatValue, formatDate, ariaLabel }: Pr
     PAD.left + (xMax === xMin ? innerW / 2 : ((ms - xMin) / (xMax - xMin)) * innerW)
   const yAt = (value: number) => PAD.top + innerH - ((value - yMin) / (yMax - yMin || 1)) * innerH
 
-  const coords = points.map((p) => ({ x: xAt(p.startedAt), y: yAt(p.value), point: p }))
+  const coords = points.map((p) => ({ x: xAt(p.at), y: yAt(p.value), point: p }))
   const linePath = coords
     .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
     .join(' ')
@@ -136,7 +153,7 @@ export function ProgressChart({ points, formatValue, formatDate, ariaLabel }: Pr
           const isSelected = selected === i
           const showMarker = !dense || isSelected
           return (
-            <g key={c.point.sessionId}>
+            <g key={c.point.id}>
               {showMarker && (
                 <circle
                   cx={c.x}
@@ -159,7 +176,7 @@ export function ProgressChart({ points, formatValue, formatDate, ariaLabel }: Pr
                 pointerEvents="all"
                 tabIndex={0}
                 role="button"
-                aria-label={`${formatDate(c.point.startedAt)}: ${formatValue(c.point.value)}`}
+                aria-label={`${formatDate(c.point.at)}: ${formatValue(c.point.value)}`}
                 onClick={() => toggle(i)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -175,7 +192,7 @@ export function ProgressChart({ points, formatValue, formatDate, ariaLabel }: Pr
       </svg>
 
       <p className="min-h-[1.25rem] text-center font-mono text-sm font-bold" aria-live="polite">
-        {active ? `${formatValue(active.point.value)} — ${formatDate(active.point.startedAt)}` : ' '}
+        {active ? `${formatValue(active.point.value)} — ${formatDate(active.point.at)}` : ' '}
       </p>
     </div>
   )

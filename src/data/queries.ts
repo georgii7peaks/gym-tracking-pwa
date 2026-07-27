@@ -9,9 +9,11 @@ import type {
   WorkoutSession,
 } from '@/domain/types'
 import {
+  buildBodyWeightSeries,
   buildDurationSeries,
   buildExerciseIndex,
   buildVolumeSeries,
+  type ProgressPoint,
   type ProgressSeries,
   type TrackedExercise,
 } from '@/domain/progress'
@@ -182,4 +184,15 @@ export async function getProgressSeries(exerciseName?: string): Promise<Progress
     volume: buildVolumeSeries(logs, sets, sessions, exerciseName),
     duration: buildDurationSeries(logs, sets, sessions, exerciseName),
   }
+}
+
+// ── Progress tab: body weight (docs/plans/body-weight-progress.md) ───────────
+
+/**
+ * Every Body Weight Entry as a chart point, oldest first. One read serves all
+ * three consumers — chart, header (last point) and the History Drawer (points
+ * reversed) — and each point's `id` is the entry id, so delete works off it.
+ */
+export async function getBodyWeightSeries(): Promise<ProgressPoint[]> {
+  return buildBodyWeightSeries(await repo.bodyWeightEntries.listChronological())
 }

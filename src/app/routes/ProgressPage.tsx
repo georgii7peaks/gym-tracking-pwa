@@ -1,8 +1,9 @@
-// Progress tab (docs/plans/progress-total-volume.md): whole-body training output
-// over time — Total Volume (Σ weight×reps of done sets per Workout Session) and
-// Total Duration (Σ durationSec) — with an optional filter down to a single
-// exercise via a bottom Drawer. Volume is aggregated canonically in kg and shown
-// in the Settings weight unit; range chips (1M/3M/6M/All) narrow the charts.
+// Progress tab (docs/plans/progress-total-volume.md + body-weight-progress.md):
+// the user's own Body Weight over time, plus whole-body training output — Total
+// Volume (Σ weight×reps of done sets per Workout Session) and Total Duration
+// (Σ durationSec) — with an optional filter down to a single exercise via a
+// bottom Drawer. Both weights are aggregated canonically in kg and shown in the
+// Settings unit; ONE set of range chips (1M/3M/6M/All) narrows every chart here.
 import { useState, type ReactNode } from 'react'
 import { Check, ChevronRight, TrendingUp } from 'lucide-react'
 import { Screen } from '@/components/Screen'
@@ -10,9 +11,10 @@ import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Drawer } from '@/components/ui/Drawer'
 import { ProgressChart } from '@/components/ProgressChart'
+import { BodyWeightSection } from '@/components/BodyWeightSection'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useLiveData } from '@/data/useLiveData'
-import { getProgressSeries, listTrackedExercises } from '@/data/queries'
+import { getBodyWeightSeries, getProgressSeries, listTrackedExercises } from '@/data/queries'
 import { filterByRange, type ProgressRange } from '@/domain/progress'
 import { kgToDisplay } from '@/domain/weight'
 import { formatDuration } from '@/domain/duration'
@@ -40,18 +42,14 @@ export function ProgressPage() {
   const volumePoints = seriesData?.volume.points ?? []
   const durationPoints = seriesData?.duration.points ?? []
 
-  // Nothing trained at all → the tab-level empty state (no filter to offer).
-  if (exercises.length === 0) {
-    return (
-      <Screen title={t('progress.title')}>
-        <EmptyState
-          icon={TrendingUp}
-          title={t('progress.empty.title')}
-          hint={t('progress.empty.hint')}
-        />
-      </Screen>
-    )
-  }
+  const { data: bodyWeightData } = useLiveData(() => getBodyWeightSeries(), [])
+  const bodyWeightPoints = bodyWeightData ?? []
+
+  // Body weight works with zero workouts, so "nothing trained yet" is no longer
+  // a tab-level early return: it becomes an inner block below the card. The
+  // range chips only disappear when the whole tab is empty.
+  const trained = exercises.length > 0
+  const showRange = trained || bodyWeightPoints.length > 0
 
   // "All": show whichever total has data. A specific exercise: show only the one
   // chart matching its metric (weightReps → Volume, duration → Duration) — the
@@ -94,48 +92,63 @@ export function ProgressPage() {
   return (
     <Screen title={t('progress.title')}>
       <div className="flex flex-col gap-4">
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          aria-label={`${t('progress.filter.button')}: ${selectedLabel}`}
-          className="flex items-center justify-between gap-3 border-2 border-border bg-card p-3 text-left shadow-retro-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="font-mono text-xs uppercase text-muted-foreground">
-              {t('progress.filter.button')}
-            </span>
-            <span className="display truncate text-base">{selectedLabel}</span>
-          </span>
-          <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-muted-foreground" />
-        </button>
+        {showRange && (
+          <SegmentedControl<ProgressRange>
+            ariaLabel={t('progress.title')}
+            value={range}
+            onChange={setRange}
+            options={[
+              { value: '1m', label: t('progress.range.1m') },
+              { value: '3m', label: t('progress.range.3m') },
+              { value: '6m', label: t('progress.range.6m') },
+              { value: 'all', label: t('progress.range.all') },
+            ]}
+          />
+        )}
 
-        <SegmentedControl<ProgressRange>
-          ariaLabel={t('progress.title')}
-          value={range}
-          onChange={setRange}
-          options={[
-            { value: '1m', label: t('progress.range.1m') },
-            { value: '3m', label: t('progress.range.3m') },
-            { value: '6m', label: t('progress.range.6m') },
-            { value: 'all', label: t('progress.range.all') },
-          ]}
-        />
+        <BodyWeightSection points={bodyWeightPoints} range={range} />
 
-        {charts.length === 0 ? (
-          <EmptyState icon={TrendingUp} title={t('progress.noData')} />
+        {!trained ? (
+          // Nothing trained yet — no exercise filter to offer, just the hint.
+          <EmptyState
+            icon={TrendingUp}
+            title={t('progress.empty.title')}
+            hint={t('progress.empty.hint')}
+          />
         ) : (
-          <div className="flex flex-col gap-6">
-            {charts.map((chart) => (
-              <ChartSection key={chart.title} title={chart.title}>
-                <ProgressChart
-                  points={chart.points}
-                  formatValue={chart.formatValue}
-                  formatDate={formatDate}
-                  ariaLabel={t('progress.chartLabel', { title: chart.title })}
-                />
-              </ChartSection>
-            ))}
-          </div>
+          <>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              aria-label={`${t('progress.filter.button')}: ${selectedLabel}`}
+              className="flex items-center justify-between gap-3 border-2 border-border bg-card p-3 text-left shadow-retro-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-mono text-xs uppercase text-muted-foreground">
+                  {t('progress.filter.button')}
+                </span>
+                <span className="display truncate text-base">{selectedLabel}</span>
+              </span>
+              <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </button>
+
+            {charts.length === 0 ? (
+              <EmptyState icon={TrendingUp} title={t('progress.noData')} />
+            ) : (
+              <div className="flex flex-col gap-6">
+                {charts.map((chart) => (
+                  <ChartSection key={chart.title} title={chart.title}>
+                    <ProgressChart
+                      points={chart.points}
+                      formatValue={chart.formatValue}
+                      formatDate={formatDate}
+                      ariaLabel={t('progress.chartLabel', { title: chart.title })}
+                    />
+                  </ChartSection>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

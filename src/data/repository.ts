@@ -3,6 +3,7 @@
 // implementation for now; the Phase 4 sync adapter sits beside it, not in the
 // UI path.
 import type {
+  BodyWeightEntry,
   RoutineDay,
   RoutineExercise,
   WorkoutSession,
@@ -60,5 +61,12 @@ export interface Repository {
      * `beforeMs`, or `undefined` if there is no prior history.
      */
     mostRecentByName(exerciseName: string, beforeMs: number): Promise<SetEntry | undefined>
+  }
+
+  bodyWeightEntries: EntityStore<BodyWeightEntry> & {
+    /** Live entries oldest-first (chart order). */
+    listChronological(): Promise<BodyWeightEntry[]>
+    /** Most recent live entry, or undefined — prefills the entry form. */
+    latest(): Promise<BodyWeightEntry | undefined>
   }
 }
