@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { GymDB } from '@/data/db'
 import { createDexieRepository } from '@/data/dexie-repository'
 import type { Repository } from '@/data/repository'
-import type { RoutineDay, SetEntry } from '@/domain/types'
+import type { BodyWeightEntry, RoutineDay, SetEntry } from '@/domain/types'
 
 // Each test gets an isolated in-memory database (fake-indexeddb from setup).
 let db: GymDB
@@ -101,6 +101,41 @@ describe('Dexie repository port', () => {
       await repo.sets.put(set({ id: 'x', exerciseLogId: 'some-other-log', createdAt: 200 }))
       const prev = await repo.sets.mostRecentByName('Bench press', 500)
       expect(prev?.id).toBe('x')
+    })
+  })
+
+  describe('bodyWeightEntries', () => {
+    const entry = (
+      partial: Partial<BodyWeightEntry> & { id: string; measuredAt: number }
+    ): BodyWeightEntry => ({ weightKg: 78, updatedAt: 1, ...partial })
+
+    it('lists entries oldest-first (chart order)', async () => {
+      await repo.bodyWeightEntries.put(entry({ id: 'b', measuredAt: 300 }))
+      await repo.bodyWeightEntries.put(entry({ id: 'a', measuredAt: 100 }))
+      await repo.bodyWeightEntries.put(entry({ id: 'c', measuredAt: 200 }))
+
+      const ids = (await repo.bodyWeightEntries.listChronological()).map((e) => e.id)
+      expect(ids).toEqual(['a', 'c', 'b'])
+    })
+
+    it('returns the most recent entry from latest()', async () => {
+      await repo.bodyWeightEntries.put(entry({ id: 'a', measuredAt: 100, weightKg: 80 }))
+      await repo.bodyWeightEntries.put(entry({ id: 'b', measuredAt: 300, weightKg: 77.5 }))
+      expect((await repo.bodyWeightEntries.latest())?.weightKg).toBe(77.5)
+    })
+
+    it('has no latest() entry on an empty store', async () => {
+      expect(await repo.bodyWeightEntries.latest()).toBeUndefined()
+    })
+
+    it('hides tombstoned entries from both reads', async () => {
+      await repo.bodyWeightEntries.put(entry({ id: 'a', measuredAt: 100, weightKg: 80 }))
+      await repo.bodyWeightEntries.put(entry({ id: 'b', measuredAt: 300, weightKg: 77.5 }))
+      await repo.bodyWeightEntries.remove('b')
+
+      expect((await repo.bodyWeightEntries.listChronological()).map((e) => e.id)).toEqual(['a'])
+      expect((await repo.bodyWeightEntries.latest())?.id).toBe('a')
+      expect(await repo.bodyWeightEntries.get('b')).toBeUndefined()
     })
   })
 })

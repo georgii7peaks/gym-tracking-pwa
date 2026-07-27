@@ -13,6 +13,7 @@
 import type { Table } from 'dexie'
 import { now } from '@/domain/ids'
 import type {
+  BodyWeightEntry,
   ExerciseLog,
   Metric,
   RoutineDay,
@@ -40,6 +41,12 @@ export interface BackupFile {
   workoutSessions: WorkoutSession[]
   exerciseLogs: ExerciseLog[]
   sets: SetEntry[]
+  /**
+   * Body Weight Entries. Added after the format shipped, so parseBackup reads
+   * it OPTIONALLY (absent → []) and the version stays 1 — older files import
+   * unchanged and need no legacy branch.
+   */
+  bodyWeightEntries: BodyWeightEntry[]
 }
 
 export interface ImportResult {
@@ -73,6 +80,9 @@ export async function exportBackup(database: GymDB = sharedDb): Promise<BackupFi
     (r) => !r.deleted && logIds.has(r.exerciseLogId)
   )
 
+  // Body Weight Entries have no parent — only the tombstone filter applies.
+  const bodyWeightEntries = (await database.bodyWeightEntries.toArray()).filter((r) => !r.deleted)
+
   return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
@@ -82,6 +92,7 @@ export async function exportBackup(database: GymDB = sharedDb): Promise<BackupFi
     workoutSessions,
     exerciseLogs,
     sets,
+    bodyWeightEntries,
   }
 }
 
@@ -151,6 +162,13 @@ function readSet(raw: unknown): SetEntry | null {
   }
 }
 
+function readBodyWeightEntry(raw: unknown): BodyWeightEntry | null {
+  if (!isRecord(raw)) return null
+  const { id, weightKg, measuredAt, updatedAt } = raw
+  if (!isId(id) || !isMs(weightKg) || !isMs(measuredAt) || !isMs(updatedAt)) return null
+  return { id, weightKg, measuredAt, updatedAt }
+}
+
 function readAll<T>(items: unknown[], read: (raw: unknown) => T | null): T[] | null {
   const out: T[] = []
   for (const item of items) {
@@ -187,13 +205,18 @@ export function parseBackup(text: string): BackupFile | null {
   if (!Array.isArray(raw.workoutSessions) || !Array.isArray(raw.exerciseLogs) || !Array.isArray(raw.sets)) {
     return null
   }
+  // Optional field: absent in files written before body weight existed.
+  const rawBodyWeight = isFull && raw.bodyWeightEntries !== undefined ? raw.bodyWeightEntries : []
+  if (!Array.isArray(rawBodyWeight)) return null
 
   const routineDays = readAll(rawDays, readDay)
   const routineExercises = readAll(rawExercises, readExercise)
   const workoutSessions = readAll(raw.workoutSessions, readSession)
   const exerciseLogs = readAll(raw.exerciseLogs, readLog)
   const sets = readAll(raw.sets, readSet)
+  const bodyWeightEntries = readAll(rawBodyWeight, readBodyWeightEntry)
   if (!routineDays || !routineExercises || !workoutSessions || !exerciseLogs || !sets) return null
+  if (!bodyWeightEntries) return null
 
   const dayIds = new Set(routineDays.map((d) => d.id))
   if (routineExercises.some((e) => !dayIds.has(e.dayId))) return null
@@ -211,6 +234,7 @@ export function parseBackup(text: string): BackupFile | null {
     workoutSessions,
     exerciseLogs,
     sets,
+    bodyWeightEntries,
   }
 }
 
@@ -277,6 +301,7 @@ export async function importBackup(
       database.workoutSessions,
       database.exerciseLogs,
       database.sets,
+      database.bodyWeightEntries,
     ],
     async () => {
       imported += await mergeRoutineDays(database, snapshot.routineDays, ts)
@@ -284,6 +309,7 @@ export async function importBackup(
       imported += await mergeInto(database.workoutSessions, snapshot.workoutSessions, ts)
       imported += await mergeInto(database.exerciseLogs, snapshot.exerciseLogs, ts)
       imported += await mergeInto(database.sets, snapshot.sets, ts)
+      imported += await mergeInto(database.bodyWeightEntries, snapshot.bodyWeightEntries, ts)
     }
   )
 
@@ -292,7 +318,8 @@ export async function importBackup(
     snapshot.routineExercises.length +
     snapshot.workoutSessions.length +
     snapshot.exerciseLogs.length +
-    snapshot.sets.length
+    snapshot.sets.length +
+    snapshot.bodyWeightEntries.length
 
   if (imported > 0) notifyDataChanged()
   return { importedRecords: imported, skippedRecords: total - imported }

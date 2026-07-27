@@ -7,14 +7,17 @@ import {
   addSet,
   applyStarterProgram,
   createRoutineDay,
+  deleteBodyWeightEntry,
   deleteRoutineDay,
   deleteSession,
   finishSession,
   getPreviousSet,
+  logBodyWeight,
   renameRoutineExercise,
   reorderRoutineDays,
   resumeSession,
   startSessionFromDay,
+  updateBodyWeightEntry,
 } from './operations'
 import { STARTER_PROGRAMS } from '@/domain/starterPrograms'
 import type { ExerciseLog } from '@/domain/types'
@@ -231,5 +234,82 @@ describe('operations — auto-fill from the previous workout of the same type', 
     await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
     const s1 = await startSessionFromDay(day!.id)
     expect(await repo.sets.byLog((await firstLog(s1!.id)).id)).toHaveLength(0)
+  })
+})
+
+describe('operations — body weight', () => {
+  it('stores the canonical kg value rounded to 2 decimals', async () => {
+    // 173 lb → 78.4707… kg; rounding keeps the error below display precision.
+    const entry = await logBodyWeight(78.47070422)
+    expect(entry?.weightKg).toBe(78.47)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(1)
+  })
+
+  it('rejects a non-positive weight (nothing saved)', async () => {
+    expect(await logBodyWeight(0)).toBeNull()
+    expect(await logBodyWeight(-5)).toBeNull()
+    expect(await logBodyWeight(Number.NaN)).toBeNull()
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(0)
+  })
+
+  it('creates a separate entry per save, even on the same day', async () => {
+    const first = await logBodyWeight(78)
+    const second = await logBodyWeight(78.4)
+    expect(first!.id).not.toBe(second!.id)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(2)
+  })
+
+  it('stamps measuredAt with the save timestamp', async () => {
+    const before = Date.now()
+    const entry = await logBodyWeight(78)
+    expect(entry!.measuredAt).toBeGreaterThanOrEqual(before)
+    expect(entry!.measuredAt).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('hides a deleted entry from reads (soft delete)', async () => {
+    const entry = await logBodyWeight(78)
+    await deleteBodyWeightEntry(entry!.id)
+    expect(await repo.bodyWeightEntries.listChronological()).toHaveLength(0)
+    expect(await repo.bodyWeightEntries.latest()).toBeUndefined()
+  })
+
+  it('back-dates an entry when an explicit measuredAt is given', async () => {
+    const yesterday = Date.now() - 86_400_000
+    const entry = await logBodyWeight(78, yesterday)
+    expect(entry!.measuredAt).toBe(yesterday)
+    // updatedAt is always "now" — sync is last-write-wins on that field.
+    expect(entry!.updatedAt).toBeGreaterThan(yesterday)
+  })
+
+  it('rejects a weigh-in dated in the future (nothing saved)', async () => {
+    expect(await logBodyWeight(78, Date.now() + 3_600_000)).toBeNull()
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(0)
+  })
+
+  it('edits weight and date in place, keeping the id and bumping updatedAt', async () => {
+    const entry = await logBodyWeight(78, Date.now() - 86_400_000)
+    const newDate = Date.now() - 2 * 86_400_000
+
+    const updated = await updateBodyWeightEntry(entry!.id, { weightKg: 76.5, measuredAt: newDate })
+
+    expect(updated!.id).toBe(entry!.id)
+    expect(updated!.weightKg).toBe(76.5)
+    expect(updated!.measuredAt).toBe(newDate)
+    expect(updated!.updatedAt).toBeGreaterThanOrEqual(entry!.updatedAt)
+    expect(await repo.bodyWeightEntries.list()).toHaveLength(1)
+  })
+
+  it('rejects an edit with an unknown id, an invalid weight or a future date', async () => {
+    const entry = await logBodyWeight(78)
+    const at = entry!.measuredAt
+
+    expect(await updateBodyWeightEntry('nope', { weightKg: 76, measuredAt: at })).toBeNull()
+    expect(await updateBodyWeightEntry(entry!.id, { weightKg: 0, measuredAt: at })).toBeNull()
+    expect(
+      await updateBodyWeightEntry(entry!.id, { weightKg: 76, measuredAt: Date.now() + 3_600_000 })
+    ).toBeNull()
+
+    // The original survives untouched.
+    expect((await repo.bodyWeightEntries.get(entry!.id))!.weightKg).toBe(78)
   })
 })

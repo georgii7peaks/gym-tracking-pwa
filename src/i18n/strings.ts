@@ -9,8 +9,10 @@ type Entry = { ru: string; en: string }
 export const catalog = {
   // ── Common actions ─────────────────────────────────────────────────────────
   'common.add': { ru: 'Добавить', en: 'Add' },
+  'common.save': { ru: 'Сохранить', en: 'Save' },
   'common.cancel': { ru: 'Отмена', en: 'Cancel' },
   'common.delete': { ru: 'Удалить', en: 'Delete' },
+  'common.edit': { ru: 'Изменить', en: 'Edit' },
   'common.close': { ru: 'Закрыть', en: 'Close' },
   'common.back': { ru: 'Назад', en: 'Back' },
 
@@ -244,6 +246,45 @@ export const catalog = {
   'progress.duration.title': { ru: 'Общее время', en: 'Total duration' },
   'progress.duration.titleFor': { ru: 'Время: {name}', en: 'Duration: {name}' },
   'progress.chartLabel': { ru: 'График: {title}', en: 'Chart: {title}' },
+
+  // ── Body weight (docs/plans/body-weight-progress.md) ────────────────────────
+  'progress.bodyWeight.title': { ru: 'Вес тела', en: 'Body weight' },
+  'progress.bodyWeight.chartTitle': { ru: 'Вес тела, {unit}', en: 'Body weight, {unit}' },
+  'progress.bodyWeight.log': { ru: 'Записать вес', en: 'Log weight' },
+  'progress.bodyWeight.empty': {
+    ru: 'Запишите свой вес, чтобы видеть динамику',
+    en: 'Log your weight to see the trend',
+  },
+  'progress.bodyWeight.current': { ru: 'Текущий вес', en: 'Current weight' },
+  'progress.bodyWeight.change': { ru: 'Изменение за период', en: 'Change over period' },
+  'progress.bodyWeight.dialogTitle': { ru: 'Записать вес', en: 'Log weight' },
+  'progress.bodyWeight.editDialogTitle': { ru: 'Изменить запись', en: 'Edit entry' },
+  'progress.bodyWeight.field': { ru: 'Вес, {unit}', en: 'Weight, {unit}' },
+  'progress.bodyWeight.dateField': { ru: 'Дата и время', en: 'Date and time' },
+  'progress.bodyWeight.dateFuture': {
+    ru: 'Нельзя записать вес в будущем',
+    en: 'A weigh-in cannot be in the future',
+  },
+  // Actions on the selected chart point: one weigh-in in "All", a whole
+  // day/week bucket otherwise.
+  'progress.bodyWeight.pointActions': { ru: 'Действия с записью', en: 'Entry actions' },
+  'progress.bodyWeight.pointActionsMany': { ru: 'Действия с записями', en: 'Entry actions' },
+  'progress.bodyWeight.pointTitle': { ru: 'Запись веса', en: 'Weight entry' },
+  'progress.bodyWeight.pointTitleDay': { ru: 'Записи за день', en: 'Entries for the day' },
+  'progress.bodyWeight.pointTitleWeek': { ru: 'Записи за неделю', en: 'Entries for the week' },
+  'progress.bodyWeight.decrease': { ru: 'Уменьшить вес', en: 'Decrease weight' },
+  'progress.bodyWeight.increase': { ru: 'Увеличить вес', en: 'Increase weight' },
+  'progress.bodyWeight.delete.title': { ru: 'Удалить запись?', en: 'Delete entry?' },
+  'progress.bodyWeight.delete.message': {
+    ru: 'Запись веса будет удалена без возможности восстановления.',
+    en: 'This weight entry will be permanently removed.',
+  },
+  'progress.bodyWeight.group.label': { ru: 'Группировка', en: 'Grouping' },
+  'progress.bodyWeight.group.raw': { ru: 'Все', en: 'All' },
+  'progress.bodyWeight.group.day': { ru: 'По дням', en: 'By day' },
+  'progress.bodyWeight.group.week': { ru: 'По неделям', en: 'By week' },
+  'progress.bodyWeight.avg.day': { ru: 'ср. за день', en: 'daily average' },
+  'progress.bodyWeight.avg.week': { ru: 'ср. за неделю', en: 'weekly average' },
 } satisfies Record<string, Entry>
 
 export type StringKey = keyof typeof catalog

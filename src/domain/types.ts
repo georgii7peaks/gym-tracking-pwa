@@ -86,9 +86,34 @@ export interface SetEntry extends SyncMeta {
   done?: boolean
 }
 
-/** Union of every syncable entity — handy for the generic repository/sync layer. */
-export type AnyEntity = RoutineDay | RoutineExercise | WorkoutSession | ExerciseLog | SetEntry
+// ── Body side (personal measurements) ───────────────────────────────────────
 
-/** The five logical collections, named for tables and Firestore paths. */
+/**
+ * A dated record of the user's OWN body weight (docs/plans/body-weight-progress.md).
+ * Belongs to neither the Routine nor the Workout aggregate — it stands alone.
+ */
+export interface BodyWeightEntry extends SyncMeta {
+  id: string
+  /** Canonical kilograms (same rule as SetEntry.weightKg). */
+  weightKg: number
+  /** When the weigh-in was recorded (ms). */
+  measuredAt: number
+}
+
+/** Union of every syncable entity — handy for the generic repository/sync layer. */
+export type AnyEntity =
+  | RoutineDay
+  | RoutineExercise
+  | WorkoutSession
+  | ExerciseLog
+  | SetEntry
+  | BodyWeightEntry
+
+/** The logical collections, named for tables and Firestore paths. */
 export type EntityName =
-  'routineDays' | 'routineExercises' | 'workoutSessions' | 'exerciseLogs' | 'sets'
+  | 'routineDays'
+  | 'routineExercises'
+  | 'workoutSessions'
+  | 'exerciseLogs'
+  | 'sets'
+  | 'bodyWeightEntries'

@@ -10,6 +10,7 @@ import {
   type BackupFile,
 } from '@/data/exportImport'
 import type {
+  BodyWeightEntry,
   ExerciseLog,
   RoutineDay,
   RoutineExercise,
@@ -61,6 +62,10 @@ function set(partial: Partial<SetEntry> & { id: string; exerciseLogId: string })
   }
 }
 
+function bodyWeight(partial: Partial<BodyWeightEntry> & { id: string }): BodyWeightEntry {
+  return { weightKg: 78, measuredAt: 100, updatedAt: 100, ...partial }
+}
+
 async function seedSource() {
   await source.routineDays.bulkPut([
     day({ id: 'r1' }),
@@ -99,6 +104,15 @@ describe('exportBackup', () => {
     expect(snapshot.workoutSessions.map((s) => s.id)).toEqual(['s1'])
     expect(snapshot.exerciseLogs.map((l) => l.id)).toEqual(['l1'])
     expect(snapshot.sets.map((s) => s.id)).toEqual(['x1'])
+  })
+
+  it('exports live body weight entries and drops tombstoned ones', async () => {
+    await source.bodyWeightEntries.bulkPut([
+      bodyWeight({ id: 'w1', weightKg: 78.5 }),
+      bodyWeight({ id: 'w2', deleted: true, updatedAt: 200 }),
+    ])
+    const snapshot = await exportBackup(source)
+    expect(snapshot.bodyWeightEntries.map((e) => e.id)).toEqual(['w1'])
   })
 })
 
@@ -175,6 +189,27 @@ describe('parseBackup', () => {
     const parsed = parseBackup(JSON.stringify(snapshot))
     expect(parsed!.routineDays[0].deleted).toBeUndefined()
   })
+
+  it('round-trips body weight entries', async () => {
+    await source.bodyWeightEntries.put(bodyWeight({ id: 'w1', weightKg: 78.5, measuredAt: 700 }))
+    const parsed = parseBackup(JSON.stringify(await exportBackup(source)))
+    expect(parsed!.bodyWeightEntries).toEqual([
+      { id: 'w1', weightKg: 78.5, measuredAt: 700, updatedAt: 100 },
+    ])
+  })
+
+  it('still parses a file written before body weight existed (field absent)', async () => {
+    const snapshot = JSON.parse(await validText())
+    delete snapshot.bodyWeightEntries
+    const parsed = parseBackup(JSON.stringify(snapshot))
+    expect(parsed).not.toBeNull()
+    expect(parsed!.bodyWeightEntries).toEqual([])
+  })
+
+  it('rejects a malformed body weight entry', async () => {
+    const snapshot = JSON.parse(await validText())
+    expect(parseBackup(JSON.stringify({ ...snapshot, bodyWeightEntries: [{ id: 'w1' }] }))).toBeNull()
+  })
 })
 
 describe('importBackup', () => {
@@ -250,5 +285,27 @@ describe('importBackup', () => {
     expect(second).toEqual({ importedRecords: 0, skippedRecords: 5 })
     expect(await target.routineDays.toArray()).toHaveLength(1)
     expect(await target.sets.toArray()).toHaveLength(1)
+  })
+
+  it('imports body weight entries and counts them in the total', async () => {
+    await source.bodyWeightEntries.put(bodyWeight({ id: 'w1', weightKg: 78.5 }))
+    const snapshot = await snapshotFromSource()
+
+    const result = await importBackup(snapshot, target)
+
+    expect(result).toEqual({ importedRecords: 6, skippedRecords: 0 })
+    expect((await target.bodyWeightEntries.get('w1'))!.weightKg).toBe(78.5)
+  })
+
+  it('LWW-merges an entry that already exists locally', async () => {
+    await source.bodyWeightEntries.put(bodyWeight({ id: 'w1', weightKg: 78.5, updatedAt: 100 }))
+    const snapshot = await snapshotFromSource()
+    // A newer local edit of the same entry must survive the import.
+    await target.bodyWeightEntries.put(bodyWeight({ id: 'w1', weightKg: 80, updatedAt: 999 }))
+
+    const result = await importBackup(snapshot, target)
+
+    expect((await target.bodyWeightEntries.get('w1'))!.weightKg).toBe(80)
+    expect(result.skippedRecords).toBe(1)
   })
 })

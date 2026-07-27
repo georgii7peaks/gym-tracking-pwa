@@ -1,7 +1,7 @@
 // Dexie-backed implementation of the repository port (ADR-0002).
 import Dexie, { type Table } from 'dexie'
 import { now } from '@/domain/ids'
-import type { SyncMeta } from '@/domain/types'
+import type { BodyWeightEntry, SyncMeta } from '@/domain/types'
 import { GymDB, db as sharedDb } from './db'
 import type { EntityStore, Repository } from './repository'
 
@@ -37,6 +37,7 @@ export function createDexieRepository(database: GymDB = sharedDb): Repository {
   const sessions = makeStore(database.workoutSessions)
   const logs = makeStore(database.exerciseLogs)
   const sets = makeStore(database.sets)
+  const bodyWeightEntries = makeStore(database.bodyWeightEntries)
 
   return {
     routineDays: {
@@ -84,6 +85,20 @@ export function createDexieRepository(database: GymDB = sharedDb): Repository {
           .reverse()
           .filter((r) => !r.deleted)
           .first()
+      },
+    },
+
+    bodyWeightEntries: {
+      ...bodyWeightEntries,
+      async listChronological() {
+        return (await bodyWeightEntries.list()).sort((a, b) => a.measuredAt - b.measuredAt)
+      },
+      async latest() {
+        const entries = await bodyWeightEntries.list()
+        return entries.reduce<BodyWeightEntry | undefined>(
+          (newest, e) => (!newest || e.measuredAt > newest.measuredAt ? e : newest),
+          undefined
+        )
       },
     },
   }
