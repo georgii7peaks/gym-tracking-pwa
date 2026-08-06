@@ -5,8 +5,10 @@ import {
   BACKUP_VERSION,
   LEGACY_WORKOUTS_FORMAT,
   exportBackup,
+  exportRoutine,
   importBackup,
   parseBackup,
+  routineOnly,
   type BackupFile,
 } from '@/data/exportImport'
 import type {
@@ -113,6 +115,32 @@ describe('exportBackup', () => {
     ])
     const snapshot = await exportBackup(source)
     expect(snapshot.bodyWeightEntries.map((e) => e.id)).toEqual(['w1'])
+  })
+})
+
+describe('exportRoutine', () => {
+  it('exports the live routine with an empty workout side', async () => {
+    await seedSource()
+    await source.bodyWeightEntries.put(bodyWeight({ id: 'w1' }))
+
+    const snapshot = await exportRoutine(source)
+
+    expect(snapshot.format).toBe(BACKUP_FORMAT)
+    expect(snapshot.version).toBe(BACKUP_VERSION)
+    expect(snapshot.routineDays.map((d) => d.id)).toEqual(['r1'])
+    expect(snapshot.routineExercises.map((e) => e.id)).toEqual(['e1'])
+    expect(snapshot.workoutSessions).toEqual([])
+    expect(snapshot.exerciseLogs).toEqual([])
+    expect(snapshot.sets).toEqual([])
+    expect(snapshot.bodyWeightEntries).toEqual([])
+  })
+
+  it('produces a file that parseBackup accepts', async () => {
+    await seedSource()
+    const parsed = parseBackup(JSON.stringify(await exportRoutine(source)))
+    expect(parsed).not.toBeNull()
+    expect(parsed!.routineDays).toHaveLength(1)
+    expect(parsed!.workoutSessions).toEqual([])
   })
 })
 
@@ -295,6 +323,24 @@ describe('importBackup', () => {
 
     expect(result).toEqual({ importedRecords: 6, skippedRecords: 0 })
     expect((await target.bodyWeightEntries.get('w1'))!.weightKg).toBe(78.5)
+  })
+
+  it('imports the routine only when the snapshot is narrowed with routineOnly', async () => {
+    await source.bodyWeightEntries.put(bodyWeight({ id: 'w1' }))
+    const snapshot = await snapshotFromSource()
+    // A workout history that already lives on the importing device.
+    await target.workoutSessions.put(session({ id: 'local-s', name: 'Local session' }))
+
+    const result = await importBackup(routineOnly(snapshot), target)
+
+    expect(result).toEqual({ importedRecords: 2, skippedRecords: 0 })
+    expect(await target.routineDays.toArray()).toHaveLength(1)
+    expect(await target.routineExercises.toArray()).toHaveLength(1)
+    // Nothing from the file's workout side landed, and the local one survived.
+    expect((await target.workoutSessions.toArray()).map((s) => s.id)).toEqual(['local-s'])
+    expect(await target.exerciseLogs.toArray()).toEqual([])
+    expect(await target.sets.toArray()).toEqual([])
+    expect(await target.bodyWeightEntries.toArray()).toEqual([])
   })
 
   it('LWW-merges an entry that already exists locally', async () => {

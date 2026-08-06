@@ -1,7 +1,14 @@
-// Full-data backup: export to / import from a local JSON file. Covers both
-// aggregates — the Routine (Routine Days -> Routine Exercises) and the Workout
-// history (Workout Sessions -> Exercise Logs -> Sets). Files from the earlier
-// workouts-only format are still importable (parseBackup accepts both).
+// Backup: export to / import from a local JSON file. Covers both aggregates —
+// the Routine (Routine Days -> Routine Exercises) and the Workout history
+// (Workout Sessions -> Exercise Logs -> Sets, plus Body Weight Entries).
+// Files from the earlier workouts-only format are still importable (parseBackup
+// accepts both).
+//
+// Either aggregate can be handled alone (§ "scope" below): `exportRoutine`
+// writes a file with the Workout side empty, and `routineOnly` strips the
+// Workout side off a parsed file before import. One format serves both — a
+// Routine-only file is just a backup whose Workout arrays are empty — so no
+// version bump and no separate parser.
 //
 // Import is a MERGE, never a replace: per-record last-write-wins by
 // `updatedAt`, the same rule the sync engine uses (syncEngine.ts). The LWW
@@ -49,6 +56,12 @@ export interface BackupFile {
   bodyWeightEntries: BodyWeightEntry[]
 }
 
+/**
+ * Which aggregates an export/import action covers: the Routine alone
+ * ('routine') or the Routine together with the Workout history ('all').
+ */
+export type BackupScope = 'routine' | 'all'
+
 export interface ImportResult {
   /** File records that added or updated something locally. */
   importedRecords: number
@@ -58,17 +71,23 @@ export interface ImportResult {
 
 // ── Export ───────────────────────────────────────────────────────────────────
 
+/** Live Routine records: days, then their surviving exercises. */
+async function readRoutine(database: GymDB) {
+  const routineDays = (await database.routineDays.toArray()).filter((r) => !r.deleted)
+  const dayIds = new Set(routineDays.map((d) => d.id))
+  const routineExercises = (await database.routineExercises.toArray()).filter(
+    (r) => !r.deleted && dayIds.has(r.dayId)
+  )
+  return { routineDays, routineExercises }
+}
+
 /**
  * Snapshot all LIVE data. Tombstoned records are sync plumbing and stay out of
  * the file (importing them elsewhere would replay deletions); children of
  * tombstoned parents are excluded with them.
  */
 export async function exportBackup(database: GymDB = sharedDb): Promise<BackupFile> {
-  const routineDays = (await database.routineDays.toArray()).filter((r) => !r.deleted)
-  const dayIds = new Set(routineDays.map((d) => d.id))
-  const routineExercises = (await database.routineExercises.toArray()).filter(
-    (r) => !r.deleted && dayIds.has(r.dayId)
-  )
+  const { routineDays, routineExercises } = await readRoutine(database)
 
   const workoutSessions = (await database.workoutSessions.toArray()).filter((r) => !r.deleted)
   const sessionIds = new Set(workoutSessions.map((s) => s.id))
@@ -93,6 +112,27 @@ export async function exportBackup(database: GymDB = sharedDb): Promise<BackupFi
     exerciseLogs,
     sets,
     bodyWeightEntries,
+  }
+}
+
+/**
+ * Snapshot the Routine alone (Routine Days -> Routine Exercises), leaving the
+ * Workout side of the file empty. Same format and version as the full backup,
+ * so importing it with either action can only touch the Routine.
+ */
+export async function exportRoutine(database: GymDB = sharedDb): Promise<BackupFile> {
+  const { routineDays, routineExercises } = await readRoutine(database)
+
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: now(),
+    routineDays,
+    routineExercises,
+    workoutSessions: [],
+    exerciseLogs: [],
+    sets: [],
+    bodyWeightEntries: [],
   }
 }
 
@@ -239,6 +279,22 @@ export function parseBackup(text: string): BackupFile | null {
 }
 
 // ── Import ───────────────────────────────────────────────────────────────────
+
+/**
+ * Drop the Workout side of a parsed snapshot, keeping the Routine. Importing
+ * the result leaves this device's Workout Sessions, Exercise Logs, Sets and
+ * Body Weight Entries untouched — "import the Routine only", whatever the file
+ * happens to contain.
+ */
+export function routineOnly(snapshot: BackupFile): BackupFile {
+  return {
+    ...snapshot,
+    workoutSessions: [],
+    exerciseLogs: [],
+    sets: [],
+    bodyWeightEntries: [],
+  }
+}
 
 /** LWW-merge records into a table; returns how many were applied. */
 async function mergeInto<T extends SyncMeta & { id: string }>(

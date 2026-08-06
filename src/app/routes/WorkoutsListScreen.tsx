@@ -1,7 +1,7 @@
-// Workouts list / history (design-styled). Tab root for Workouts: newest-first
-// sessions as cards, then an "add workout" button as the last item. Starting one
-// opens the Start Workout sheet and then the inline session screen; Edit mode
-// reveals a confirmed per-row delete.
+// Workouts list / history (design-styled). Tab root for Workouts: an "add workout"
+// button first, then newest-first sessions as cards. Starting one opens the Start
+// Workout sheet and then the inline session screen; Edit mode reveals a confirmed
+// per-row delete.
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Dumbbell, Plus, Trash2 } from 'lucide-react'
@@ -54,6 +54,12 @@ export function WorkoutsListScreen() {
         </>
       ) : (
         <div className="flex flex-col gap-3">
+          {/* Add-workout button as the first item of the list. */}
+          <Button className="w-full" onClick={startWorkout}>
+            <Plus aria-hidden className="h-5 w-5" strokeWidth={2.5} />
+            {t('workouts.new')}
+          </Button>
+
           <ul className="flex flex-col gap-3">
             {summaries.map((summary) => (
               <li key={summary.session.id} className="flex items-stretch gap-2">
@@ -82,12 +88,6 @@ export function WorkoutsListScreen() {
               </li>
             ))}
           </ul>
-
-          {/* Add-workout button as the last item of the list. */}
-          <Button className="w-full" onClick={startWorkout}>
-            <Plus aria-hidden className="h-5 w-5" strokeWidth={2.5} />
-            {t('workouts.new')}
-          </Button>
         </div>
       )}
 

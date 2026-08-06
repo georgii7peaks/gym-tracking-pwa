@@ -12,7 +12,14 @@ import { useAuth } from '@/auth/AuthProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useTheme } from '@/theme/ThemeProvider'
 import { useLiveData } from '@/data/useLiveData'
-import { exportBackup, importBackup, parseBackup } from '@/data/exportImport'
+import {
+  exportBackup,
+  exportRoutine,
+  importBackup,
+  parseBackup,
+  routineOnly,
+  type BackupScope,
+} from '@/data/exportImport'
 import { formatRelativeTime } from '@/lib/datetime'
 import { downloadTextFile, pickTextFile } from '@/lib/fileTransfer'
 import { getPreference, setPreference } from '@/prefs/preferences'
@@ -61,22 +68,25 @@ export function SettingsPage() {
     setPreference('soundHaptics', on)
   }
 
-  const handleExport = async () => {
-    const snapshot = await exportBackup()
+  const handleExport = async (scope: BackupScope) => {
+    const snapshot = scope === 'routine' ? await exportRoutine() : await exportBackup()
     const date = new Date(snapshot.exportedAt).toISOString().slice(0, 10)
-    downloadTextFile(`gym-backup-${date}.json`, JSON.stringify(snapshot, null, 2))
+    const name = scope === 'routine' ? 'gym-routine' : 'gym-backup'
+    downloadTextFile(`${name}-${date}.json`, JSON.stringify(snapshot, null, 2))
   }
 
-  const handleImport = async () => {
+  const handleImport = async (scope: BackupScope) => {
     setImportError(null)
     const text = await pickTextFile('.json,application/json')
     if (text === null) return // user cancelled the picker
-    const snapshot = parseBackup(text)
-    if (!snapshot) {
+    const parsed = parseBackup(text)
+    if (!parsed) {
       setImportError(t('settings.data.importError'))
       return
     }
-    const result = await importBackup(snapshot)
+    // Routine scope drops the file's Workout side, so a Workout history here is
+    // untouched even when the file was a full backup.
+    const result = await importBackup(scope === 'routine' ? routineOnly(parsed) : parsed)
     setToast(t('settings.data.imported', { n: result.importedRecords, m: result.skippedRecords }))
   }
 
@@ -235,11 +245,33 @@ export function SettingsPage() {
           <h2 className="kicker">{t('settings.data')}</h2>
           <Card>
             <CardBody className="flex flex-col gap-3">
-              <Button variant="secondary" className="w-full" onClick={() => void handleExport()}>
-                {t('settings.data.export')}
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleExport('routine')}
+              >
+                {t('settings.data.export.routine')}
               </Button>
-              <Button variant="secondary" className="w-full" onClick={() => void handleImport()}>
-                {t('settings.data.import')}
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleExport('all')}
+              >
+                {t('settings.data.export.all')}
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleImport('routine')}
+              >
+                {t('settings.data.import.routine')}
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleImport('all')}
+              >
+                {t('settings.data.import.all')}
               </Button>
               <p className="text-sm text-muted-foreground">{t('settings.data.footer')}</p>
               {importError && <p className="text-sm text-destructive">{importError}</p>}
