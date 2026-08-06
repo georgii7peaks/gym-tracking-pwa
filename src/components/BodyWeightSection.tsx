@@ -115,7 +115,9 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
       {plotted.length > 0 ? (
         <>
           <ProgressChart
-            points={plotted}
+            // Always exactly one series, so the chart renders with no legend
+            // and no program prefix — identical to before it became multi-series.
+            series={[{ label: chartTitle, color: 'var(--primary)', points: plotted }]}
             baseline="auto"
             formatValue={(kg) => formatWeightValue(kg, unit)}
             formatDate={(ms) => formatSessionDate(ms, language)}
@@ -133,7 +135,9 @@ export function BodyWeightSection({ points, range }: BodyWeightSectionProps) {
           {grouping !== 'raw' && (
             // An averaged point is not a real weigh-in — say so.
             <p className="text-center font-mono text-xs text-muted-foreground">
-              {t(grouping === 'day' ? 'progress.bodyWeight.avg.day' : 'progress.bodyWeight.avg.week')}
+              {t(
+                grouping === 'day' ? 'progress.bodyWeight.avg.day' : 'progress.bodyWeight.avg.week'
+              )}
             </p>
           )}
         </>

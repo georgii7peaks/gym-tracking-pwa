@@ -12,6 +12,7 @@ import {
   addRoutineExercise,
   addSet,
   createRoutineDay,
+  renameRoutineDay,
   startSessionFromDay,
   toggleSetDone,
   updateSessionStartedAt,
@@ -66,46 +67,12 @@ describe('Progress tab', () => {
     expect(await screen.findByText(translate('ru', 'progress.empty.title'))).toBeInTheDocument()
   })
 
-  it('shows both total charts across all exercises by default', async () => {
+  it('shows both total charts across all programs by default', async () => {
     await seedMixed()
     renderApp('/progress')
 
     expect(points(await volumeChart())).toHaveLength(2)
     expect(points(await durationChart())).toHaveLength(2)
-  })
-
-  it('filters to only the Volume chart for a weightReps exercise', async () => {
-    const user = userEvent.setup()
-    await seedMixed()
-    renderApp('/progress')
-    await volumeChart() // wait for first paint
-
-    await user.click(screen.getByRole('button', { name: /Упражнение/ }))
-    const drawer = await screen.findByRole('dialog', {
-      name: translate('ru', 'progress.filter.button'),
-    })
-    await user.click(within(drawer).getByRole('button', { name: /Bench press/ }))
-
-    expect(
-      await screen.findByRole('heading', { name: 'Объём: Bench press, кг' })
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: /Общее время/ })).not.toBeInTheDocument()
-  })
-
-  it('filters to only the Duration chart for a duration exercise', async () => {
-    const user = userEvent.setup()
-    await seedMixed()
-    renderApp('/progress')
-    await volumeChart()
-
-    await user.click(screen.getByRole('button', { name: /Упражнение/ }))
-    const drawer = await screen.findByRole('dialog', {
-      name: translate('ru', 'progress.filter.button'),
-    })
-    await user.click(within(drawer).getByRole('button', { name: /Plank/ }))
-
-    expect(await screen.findByRole('heading', { name: 'Время: Plank' })).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: /Общий объём/ })).not.toBeInTheDocument()
   })
 
   it('narrows the visible chart when a shorter range is picked', async () => {
@@ -140,7 +107,210 @@ describe('Progress tab', () => {
 
     expect(await screen.findByRole('heading', { name: 'Total volume, kg' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Total duration' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Exercise/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Program/ })).toBeInTheDocument()
+  })
+})
+
+// ── Progress by program (docs/plans/progress-by-program.md) ──────────────────
+
+/** A second program with its own weightReps exercise, trained once, 5 days ago. */
+async function seedSecondProgram(name = 'Day B') {
+  const day = await createRoutineDay(name)
+  await addRoutineExercise(day!.id, 'Squat', 'weightReps')
+  const s = await startSessionFromDay(day!.id)
+  await logDoneSet('Squat', s!.id, { weightKg: 120, reps: 5, durationSec: 0 })
+  await updateSessionStartedAt(s!.id, Date.now() - 5 * DAY_MS)
+}
+
+const seriesGroups = (chart: HTMLElement) => chart.querySelectorAll('g[data-series]')
+
+/**
+ * The colour a program is actually drawn in. A one-point series has no <path>
+ * (a line needs two coords), so fall back to its marker's fill. jsdom keeps
+ * `var(...)` verbatim in inline styles, which is what makes this assertable.
+ */
+function seriesStroke(chart: HTMLElement, program: string): string | undefined {
+  const group = chart.querySelector(`g[data-series="${program}"]`)
+  const path = group?.querySelector<SVGPathElement>('path')
+  if (path) return path.style.stroke
+  return group?.querySelector<SVGCircleElement>('circle')?.style.fill
+}
+
+const openFilter = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByTestId('program-filter'))
+  return screen.findByRole('dialog', { name: translate('ru', 'progress.filter.button') })
+}
+
+describe('Progress tab — by program', () => {
+  it('plots one line per program with a legend naming each', async () => {
+    await seedMixed()
+    await seedSecondProgram()
+    renderApp('/progress')
+
+    const chart = await volumeChart()
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(2))
+
+    const legend = screen.getByRole('list', { name: translate('ru', 'progress.legend') })
+    expect(within(legend).getByText('Day A')).toBeInTheDocument()
+    expect(within(legend).getByText('Day B')).toBeInTheDocument()
+  })
+
+  it('shows no legend for a single program', async () => {
+    await seedMixed()
+    renderApp('/progress')
+    await volumeChart()
+
+    expect(
+      screen.queryByRole('list', { name: translate('ru', 'progress.legend') })
+    ).not.toBeInTheDocument()
+  })
+
+  it('gives each program a distinct colour slot', async () => {
+    await seedMixed()
+    await seedSecondProgram()
+    renderApp('/progress')
+
+    const chart = await volumeChart()
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(2))
+    // Day A is the most recently trained, so it takes the first slot.
+    expect(seriesStroke(chart, 'Day A')).toBe('var(--series-1)')
+    expect(seriesStroke(chart, 'Day B')).toBe('var(--series-2)')
+  })
+
+  it('keeps a program its colour when the range chips change', async () => {
+    // Day B sits 200 days back, so the 1M chip drops it entirely. Day A must
+    // NOT be repainted into the freed first slot.
+    await seedMixed()
+    const day = await createRoutineDay('Day B')
+    await addRoutineExercise(day!.id, 'Squat', 'weightReps')
+    const s = await startSessionFromDay(day!.id)
+    await logDoneSet('Squat', s!.id, { weightKg: 120, reps: 5, durationSec: 0 })
+    await updateSessionStartedAt(s!.id, Date.now() - 200 * DAY_MS)
+
+    const user = userEvent.setup()
+    renderApp('/progress')
+    const chart = await volumeChart()
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(2))
+    expect(seriesStroke(chart, 'Day A')).toBe('var(--series-1)')
+
+    await user.click(screen.getByRole('radio', { name: translate('ru', 'progress.range.1m') }))
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(1))
+    expect(seriesStroke(chart, 'Day A')).toBe('var(--series-1)')
+  })
+
+  it('merges two Routine Days that share a name into one program', async () => {
+    for (let i = 0; i < 2; i++) {
+      const day = await createRoutineDay('Push')
+      await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+      const s = await startSessionFromDay(day!.id)
+      await logDoneSet('Bench press', s!.id, { weightKg: 80, reps: 5, durationSec: 0 })
+    }
+
+    const user = userEvent.setup()
+    renderApp('/progress')
+    const chart = await volumeChart()
+    await waitFor(() => expect(points(chart)).toHaveLength(2))
+    expect(seriesGroups(chart)).toHaveLength(1)
+
+    const drawer = await openFilter(user)
+    expect(
+      within(drawer).getByText(translate('ru', 'progress.program.sessions', { n: 2 }))
+    ).toBeInTheDocument()
+  })
+
+  it("keeps a renamed Routine Day's history under its old name", async () => {
+    const day = await createRoutineDay('Push')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+    const first = await startSessionFromDay(day!.id)
+    await logDoneSet('Bench press', first!.id, { weightKg: 80, reps: 5, durationSec: 0 })
+
+    await renameRoutineDay(day!.id, 'Push v2')
+    const second = await startSessionFromDay(day!.id)
+    await logDoneSet('Bench press', second!.id, { weightKg: 90, reps: 5, durationSec: 0 })
+
+    renderApp('/progress')
+    const chart = await volumeChart()
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(2))
+
+    const legend = screen.getByRole('list', { name: translate('ru', 'progress.legend') })
+    expect(within(legend).getByText('Push')).toBeInTheDocument()
+    expect(within(legend).getByText('Push v2')).toBeInTheDocument()
+  })
+
+  it('narrows to a single line when a program is picked in the Drawer', async () => {
+    const user = userEvent.setup()
+    await seedMixed()
+    await seedSecondProgram()
+    renderApp('/progress')
+    const chart = await volumeChart()
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(2))
+
+    const drawer = await openFilter(user)
+    await user.click(within(drawer).getByRole('button', { name: /Day B/ }))
+
+    await waitFor(() => expect(seriesGroups(chart)).toHaveLength(1))
+    expect(seriesStroke(chart, 'Day B')).toBe('var(--series-2)')
+    // One series: no legend, and the Duration chart is gone (Day B has none).
+    expect(
+      screen.queryByRole('list', { name: translate('ru', 'progress.legend') })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Общее время/ })).not.toBeInTheDocument()
+  })
+
+  it('lists programs newest first with their session count and last-trained date', async () => {
+    const user = userEvent.setup()
+    await seedMixed()
+    await seedSecondProgram()
+    renderApp('/progress')
+    await volumeChart()
+
+    const drawer = await openFilter(user)
+    const rows = within(drawer).getAllByRole('button')
+    // "All programs" is pinned first, then most-recently-trained.
+    expect(rows[0]).toHaveTextContent(translate('ru', 'progress.filter.all'))
+    expect(rows[1]).toHaveTextContent('Day A')
+    expect(rows[2]).toHaveTextContent('Day B')
+    expect(rows[1]).toHaveTextContent(translate('ru', 'progress.program.sessions', { n: 2 }))
+    expect(rows[1]).toHaveTextContent(/Последний раз:/)
+  })
+
+  it('does not list a Routine Day that was never trained', async () => {
+    const user = userEvent.setup()
+    await seedMixed()
+    await createRoutineDay('Untrained')
+    renderApp('/progress')
+    await volumeChart()
+
+    const drawer = await openFilter(user)
+    expect(within(drawer).queryByText('Untrained')).not.toBeInTheDocument()
+  })
+
+  it('shows the no-data state when nothing falls inside the selected range', async () => {
+    const user = userEvent.setup()
+    const day = await createRoutineDay('Day A')
+    await addRoutineExercise(day!.id, 'Bench press', 'weightReps')
+    const s = await startSessionFromDay(day!.id)
+    await logDoneSet('Bench press', s!.id, { weightKg: 80, reps: 5, durationSec: 0 })
+    await updateSessionStartedAt(s!.id, Date.now() - 200 * DAY_MS)
+
+    renderApp('/progress')
+    await volumeChart()
+    await user.click(screen.getByRole('radio', { name: translate('ru', 'progress.range.1m') }))
+
+    expect(await screen.findByText(translate('ru', 'progress.noData'))).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Общий объём/ })).not.toBeInTheDocument()
+  })
+
+  it('renders the program filter and legend in English', async () => {
+    setPreference('language', 'en')
+    await seedMixed()
+    await seedSecondProgram()
+    renderApp('/progress')
+
+    expect(await screen.findByRole('button', { name: /Program/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole('list', { name: translate('en', 'progress.legend') })
+    ).toBeInTheDocument()
   })
 })
 

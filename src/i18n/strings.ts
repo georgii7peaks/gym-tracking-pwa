@@ -206,13 +206,27 @@ export const catalog = {
   },
   'settings.sync.neverSynced': { ru: 'Ещё не синхронизировано', en: 'Not synced yet' },
 
-  // ── Settings: Data (full backup export/import to a local file) ─────────────
+  // ── Settings: Data (backup export/import to a local file) ──────────────────
   'settings.data': { ru: 'Данные', en: 'Data' },
-  'settings.data.export': { ru: 'Экспортировать данные', en: 'Export data' },
-  'settings.data.import': { ru: 'Импортировать данные', en: 'Import data' },
+  'settings.data.export.routine': {
+    ru: 'Экспортировать программу',
+    en: 'Export routine',
+  },
+  'settings.data.export.all': {
+    ru: 'Экспортировать программу с тренировками',
+    en: 'Export routine with workouts',
+  },
+  'settings.data.import.routine': {
+    ru: 'Импортировать программу',
+    en: 'Import routine',
+  },
+  'settings.data.import.all': {
+    ru: 'Импортировать программу с тренировками',
+    en: 'Import routine with workouts',
+  },
   'settings.data.footer': {
-    ru: 'Экспорт сохраняет тренировки и программу в файл JSON. Импорт добавляет данные из файла к текущим — ничего не удаляется.',
-    en: 'Export saves your workouts and routine to a JSON file. Import merges data from a file into the current data — nothing is deleted.',
+    ru: 'Экспорт сохраняет данные в файл JSON: «программа» — только дни и упражнения, «с тренировками» — ещё история тренировок и вес тела. Импорт добавляет данные из файла к текущим — ничего не удаляется, а импорт программы не затрагивает тренировки.',
+    en: 'Export saves your data to a JSON file: “routine” is days and exercises only, “with workouts” also includes the workout history and body weight. Import merges the file into the current data — nothing is deleted, and importing a routine leaves your workouts untouched.',
   },
   'settings.data.imported': {
     ru: 'Импортировано записей: {n} · без изменений: {m}',
@@ -223,12 +237,12 @@ export const catalog = {
     en: 'Import failed: this is not a backup file.',
   },
 
-  // ── Progress tab (docs/plans/progress-total-volume.md) ──────────────────────
+  // ── Progress tab (docs/plans/progress-by-program.md) ────────────────────────
   'progress.title': { ru: 'Прогресс', en: 'Progress' },
   'progress.empty.title': { ru: 'Пока нет истории', en: 'No history yet' },
   'progress.empty.hint': {
-    ru: 'Отметьте выполненные подходы в тренировке, и здесь появится прогресс по упражнениям.',
-    en: 'Mark sets done in a workout and exercise progress will show up here.',
+    ru: 'Отметьте выполненные подходы в тренировке, и здесь появится прогресс по программам.',
+    en: 'Mark sets done in a workout and progress by program will show up here.',
   },
   'progress.range.1m': { ru: '1М', en: '1M' },
   'progress.range.3m': { ru: '3М', en: '3M' },
@@ -239,12 +253,18 @@ export const catalog = {
     ru: 'Нет данных за выбранный период',
     en: 'No data in the selected range',
   },
-  'progress.filter.all': { ru: 'Все упражнения', en: 'All exercises' },
-  'progress.filter.button': { ru: 'Упражнение', en: 'Exercise' },
+  'progress.filter.all': { ru: 'Все программы', en: 'All programs' },
+  'progress.filter.button': { ru: 'Программа', en: 'Program' },
+  // Count last on purpose: it sidesteps RU *and* EN plural agreement, which this
+  // flat catalog has no machinery for (translate() is plain {placeholder} swap).
+  'progress.program.sessions': { ru: 'Тренировок: {n}', en: 'Workouts: {n}' },
+  'progress.program.capped': {
+    ru: 'Показаны 8 последних программ. Выберите программу, чтобы посмотреть остальные.',
+    en: 'Showing the 8 most recent programs. Pick a program to see the others.',
+  },
+  'progress.legend': { ru: 'Программы на графике', en: 'Programs on the chart' },
   'progress.volume.title': { ru: 'Общий объём, {unit}', en: 'Total volume, {unit}' },
-  'progress.volume.titleFor': { ru: 'Объём: {name}, {unit}', en: 'Volume: {name}, {unit}' },
   'progress.duration.title': { ru: 'Общее время', en: 'Total duration' },
-  'progress.duration.titleFor': { ru: 'Время: {name}', en: 'Duration: {name}' },
   'progress.chartLabel': { ru: 'График: {title}', en: 'Chart: {title}' },
 
   // ── Body weight (docs/plans/body-weight-progress.md) ────────────────────────

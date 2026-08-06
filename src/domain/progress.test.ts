@@ -3,10 +3,11 @@ import {
   bodyWeightDelta,
   bodyWeightEntriesForPoint,
   buildBodyWeightSeries,
-  buildDurationSeries,
-  buildExerciseIndex,
-  buildVolumeSeries,
+  buildDurationSeriesByProgram,
+  buildProgramIndex,
+  buildVolumeSeriesByProgram,
   filterByRange,
+  filterSeriesByRange,
   groupBodyWeightPoints,
 } from './progress'
 import type { BodyWeightEntry, ExerciseLog, SetEntry, WorkoutSession } from './types'
@@ -33,7 +34,7 @@ function set(partial: Partial<SetEntry> & { id: string; exerciseLogId: string })
   }
 }
 
-describe('buildVolumeSeries', () => {
+describe('buildVolumeSeriesByProgram', () => {
   it('sums weight×reps over done sets, one point per session', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [log({ id: 'l1', sessionId: 's1' })]
@@ -41,9 +42,9 @@ describe('buildVolumeSeries', () => {
       set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5 }), // 500
       set({ id: 'set2', exerciseLogId: 'l1', weightKg: 60, reps: 10 }), // 600
     ]
-    const series = buildVolumeSeries(logs, sets, sessions)
-    expect(series.metric).toBe('weightReps')
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 1100 }])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 1100 }] },
+    ])
   })
 
   it('counts only done sets', () => {
@@ -53,8 +54,9 @@ describe('buildVolumeSeries', () => {
       set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5, done: true }),
       set({ id: 'set2', exerciseLogId: 'l1', weightKg: 999, reps: 9, done: false }),
     ]
-    const series = buildVolumeSeries(logs, sets, sessions)
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 500 }])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 500 }] },
+    ])
   })
 
   it('ignores duration sets — only weightReps logs contribute', () => {
@@ -67,8 +69,9 @@ describe('buildVolumeSeries', () => {
       set({ id: 'set1', exerciseLogId: 'l1', weightKg: 40, reps: 5 }), // 200
       set({ id: 'set2', exerciseLogId: 'l2', durationSec: 60 }), // ignored
     ]
-    const series = buildVolumeSeries(logs, sets, sessions)
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 200 }])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 200 }] },
+    ])
   })
 
   it('aggregates across multiple exercises within one session', () => {
@@ -81,53 +84,38 @@ describe('buildVolumeSeries', () => {
       set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60, reps: 5 }), // 300
       set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500
     ]
-    const series = buildVolumeSeries(logs, sets, sessions)
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 800 }])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 800 }] },
+    ])
   })
 
   it('keeps sessions separate and sorts oldest first', () => {
-    const sessions = [
-      session({ id: 's2', startedAt: 2000 }),
-      session({ id: 's1', startedAt: 1000 }),
-    ]
-    const logs = [
-      log({ id: 'l2', sessionId: 's2' }),
-      log({ id: 'l1', sessionId: 's1' }),
-    ]
+    const sessions = [session({ id: 's2', startedAt: 2000 }), session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l2', sessionId: 's2' }), log({ id: 'l1', sessionId: 's1' })]
     const sets = [
       set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500 @ 2000
       set({ id: 'set1', exerciseLogId: 'l1', weightKg: 90, reps: 5 }), // 450 @ 1000
     ]
-    const series = buildVolumeSeries(logs, sets, sessions)
-    expect(series.points).toEqual([
-      { id: 's1', at: 1000, value: 450 },
-      { id: 's2', at: 2000, value: 500 },
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      {
+        program: 'Day A',
+        points: [
+          { id: 's1', at: 1000, value: 450 },
+          { id: 's2', at: 2000, value: 500 },
+        ],
+      },
     ])
-  })
-
-  it('scopes to a single exercise when a name is given', () => {
-    const sessions = [session({ id: 's1', startedAt: 1000 })]
-    const logs = [
-      log({ id: 'l1', sessionId: 's1', name: 'Bench press' }),
-      log({ id: 'l2', sessionId: 's1', name: 'Squat' }),
-    ]
-    const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 60, reps: 5 }), // 300
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // 500
-    ]
-    const series = buildVolumeSeries(logs, sets, sessions, 'Squat')
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 500 }])
   })
 
   it('is empty when no weightReps sets are done', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' })]
     const sets = [set({ id: 'set1', exerciseLogId: 'l1', durationSec: 30 })]
-    expect(buildVolumeSeries(logs, sets, sessions).points).toEqual([])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([])
   })
 })
 
-describe('buildDurationSeries', () => {
+describe('buildDurationSeriesByProgram', () => {
   it('sums durationSec over done duration sets, one point per session', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' })]
@@ -135,9 +123,9 @@ describe('buildDurationSeries', () => {
       set({ id: 'set1', exerciseLogId: 'l1', durationSec: 30 }),
       set({ id: 'set2', exerciseLogId: 'l1', durationSec: 45 }),
     ]
-    const series = buildDurationSeries(logs, sets, sessions)
-    expect(series.metric).toBe('duration')
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 75 }])
+    expect(buildDurationSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 75 }] },
+    ])
   })
 
   it('counts only done sets and ignores weightReps logs', () => {
@@ -151,58 +139,144 @@ describe('buildDurationSeries', () => {
       set({ id: 'set2', exerciseLogId: 'l1', durationSec: 999, done: false }),
       set({ id: 'set3', exerciseLogId: 'l2', weightKg: 100, reps: 5 }), // ignored
     ]
-    const series = buildDurationSeries(logs, sets, sessions)
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 40 }])
-  })
-
-  it('scopes to a single exercise when a name is given', () => {
-    const sessions = [session({ id: 's1', startedAt: 1000 })]
-    const logs = [
-      log({ id: 'l1', sessionId: 's1', name: 'Plank', metric: 'duration' }),
-      log({ id: 'l2', sessionId: 's1', name: 'Wall sit', metric: 'duration' }),
-    ]
-    const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l2', durationSec: 90 }),
-    ]
-    const series = buildDurationSeries(logs, sets, sessions, 'Wall sit')
-    expect(series.points).toEqual([{ id: 's1', at: 1000, value: 90 }])
+    expect(buildDurationSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Day A', points: [{ id: 's1', at: 1000, value: 40 }] },
+    ])
   })
 
   it('is empty when no duration sets are done', () => {
     const sessions = [session({ id: 's1', startedAt: 1000 })]
     const logs = [log({ id: 'l1', sessionId: 's1' })]
     const sets = [set({ id: 'set1', exerciseLogId: 'l1', weightKg: 100, reps: 5 })]
-    expect(buildDurationSeries(logs, sets, sessions).points).toEqual([])
+    expect(buildDurationSeriesByProgram(logs, sets, sessions)).toEqual([])
   })
 })
 
-describe('buildExerciseIndex', () => {
-  it('excludes exercises with zero done sets', () => {
-    const sessions = [session({ id: 's1', startedAt: 1000 })]
-    const logs = [log({ id: 'l1', sessionId: 's1', name: 'Untouched' })]
-    const sets = [set({ id: 'set1', exerciseLogId: 'l1', done: false })]
-    expect(buildExerciseIndex(logs, sets, sessions)).toEqual([])
+/**
+ * Program identity is the Workout Session's snapshotted NAME — there is no link
+ * back to the Routine Day (CONTEXT.md). These lock in what that buys and costs.
+ */
+describe('grouping by program', () => {
+  it('splits sessions of different programs into one series each', () => {
+    const sessions = [
+      session({ id: 's1', startedAt: 1000, name: 'Push' }),
+      session({ id: 's2', startedAt: 2000, name: 'Pull' }),
+    ]
+    const logs = [log({ id: 'l1', sessionId: 's1' }), log({ id: 'l2', sessionId: 's2' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 2 }), // 100
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50, reps: 4 }), // 200
+    ]
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([
+      { program: 'Pull', points: [{ id: 's2', at: 2000, value: 200 }] },
+      { program: 'Push', points: [{ id: 's1', at: 1000, value: 100 }] },
+    ])
   })
 
-  it('sorts by most recently trained first', () => {
+  it('merges two Routine Days that share a name into one program', () => {
+    // Two distinct days both called "Push": nothing distinguishes their sessions.
     const sessions = [
-      session({ id: 's1', startedAt: 1000 }),
-      session({ id: 's2', startedAt: 2000 }),
+      session({ id: 's1', startedAt: 1000, name: 'Push' }),
+      session({ id: 's2', startedAt: 2000, name: 'Push' }),
+    ]
+    const logs = [log({ id: 'l1', sessionId: 's1' }), log({ id: 'l2', sessionId: 's2' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 2 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50, reps: 4 }),
+    ]
+    const series = buildVolumeSeriesByProgram(logs, sets, sessions)
+    expect(series).toHaveLength(1)
+    expect(series[0].points).toHaveLength(2)
+  })
+
+  it('splits history when a Routine Day is renamed, keeping the old name', () => {
+    const sessions = [
+      session({ id: 's1', startedAt: 1000, name: 'Push' }),
+      session({ id: 's2', startedAt: 2000, name: 'Push v2' }),
+    ]
+    const logs = [log({ id: 'l1', sessionId: 's1' }), log({ id: 'l2', sessionId: 's2' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 2 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50, reps: 4 }),
+    ]
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions).map((s) => s.program)).toEqual([
+      'Push v2',
+      'Push',
+    ])
+  })
+
+  it('orders series most-recently-trained first', () => {
+    const sessions = [
+      session({ id: 's1', startedAt: 1000, name: 'Old' }),
+      session({ id: 's2', startedAt: 3000, name: 'New' }),
+      session({ id: 's3', startedAt: 2000, name: 'Mid' }),
     ]
     const logs = [
-      log({ id: 'l1', sessionId: 's1', name: 'Squat' }),
-      log({ id: 'l2', sessionId: 's2', name: 'Bench press' }),
+      log({ id: 'l1', sessionId: 's1' }),
+      log({ id: 'l2', sessionId: 's2' }),
+      log({ id: 'l3', sessionId: 's3' }),
     ]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1' }),
-      set({ id: 'set2', exerciseLogId: 'l2' }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 1, reps: 1 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 1, reps: 1 }),
+      set({ id: 'set3', exerciseLogId: 'l3', weightKg: 1, reps: 1 }),
     ]
-    const names = buildExerciseIndex(logs, sets, sessions).map((e) => e.name)
-    expect(names).toEqual(['Bench press', 'Squat'])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions).map((s) => s.program)).toEqual([
+      'New',
+      'Mid',
+      'Old',
+    ])
   })
 
-  it('counts distinct sessions, not logs', () => {
+  it('breaks a lastTrainedAt tie by name, deterministically', () => {
+    // Deterministic order is the colour contract: the slot is the index here.
+    const sessions = [
+      session({ id: 's1', startedAt: 1000, name: 'Zebra' }),
+      session({ id: 's2', startedAt: 1000, name: 'Alpha' }),
+    ]
+    const logs = [log({ id: 'l1', sessionId: 's1' }), log({ id: 'l2', sessionId: 's2' })]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 1, reps: 1 }),
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 1, reps: 1 }),
+    ]
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions).map((s) => s.program)).toEqual([
+      'Alpha',
+      'Zebra',
+    ])
+  })
+
+  it('keeps points within a series oldest first', () => {
+    const sessions = [
+      session({ id: 's2', startedAt: 3000, name: 'Push' }),
+      session({ id: 's1', startedAt: 1000, name: 'Push' }),
+    ]
+    const logs = [log({ id: 'l2', sessionId: 's2' }), log({ id: 'l1', sessionId: 's1' })]
+    const sets = [
+      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 1, reps: 1 }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 1, reps: 1 }),
+    ]
+    const [series] = buildVolumeSeriesByProgram(logs, sets, sessions)
+    expect(series.points.map((p) => p.at)).toEqual([1000, 3000])
+  })
+
+  it('ignores a log whose session is missing', () => {
+    const logs = [log({ id: 'l1', sessionId: 'gone' })]
+    const sets = [set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 5 })]
+    expect(buildVolumeSeriesByProgram(logs, sets, [])).toEqual([])
+    expect(buildProgramIndex(logs, sets, [])).toEqual([])
+  })
+
+  it('produces no series for a session whose sets are all undone', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000 })]
+    const logs = [log({ id: 'l1', sessionId: 's1' })]
+    const sets = [set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 5, done: false })]
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toEqual([])
+    expect(buildProgramIndex(logs, sets, sessions)).toEqual([])
+  })
+})
+
+describe('buildProgramIndex', () => {
+  it('counts distinct sessions, not logs, and takes the latest startedAt', () => {
     const sessions = [
       session({ id: 's1', startedAt: 1000 }),
       session({ id: 's2', startedAt: 2000 }),
@@ -217,26 +291,90 @@ describe('buildExerciseIndex', () => {
       set({ id: 'set2', exerciseLogId: 'l2' }),
       set({ id: 'set3', exerciseLogId: 'l3' }),
     ]
-    const [entry] = buildExerciseIndex(logs, sets, sessions)
-    expect(entry.sessionCount).toBe(2)
-    expect(entry.lastTrainedAt).toBe(2000)
+    expect(buildProgramIndex(logs, sets, sessions)).toEqual([
+      { name: 'Day A', lastTrainedAt: 2000, sessionCount: 2 },
+    ])
   })
 
-  it('resolves a mixed-metric name to its most recently trained log', () => {
+  it('excludes programs with zero done sets', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000, name: 'Untouched' })]
+    const logs = [log({ id: 'l1', sessionId: 's1' })]
+    const sets = [set({ id: 'set1', exerciseLogId: 'l1', done: false })]
+    expect(buildProgramIndex(logs, sets, sessions)).toEqual([])
+  })
+
+  it('covers every program in both series lists, in the same order', () => {
+    // This is the colour-stability contract: the slot is a program's position
+    // here, so the index must never omit or reorder relative to the series.
     const sessions = [
-      session({ id: 's1', startedAt: 1000 }),
-      session({ id: 's2', startedAt: 2000 }),
+      session({ id: 's1', startedAt: 1000, name: 'Legs' }),
+      session({ id: 's2', startedAt: 2000, name: 'Core' }),
     ]
     const logs = [
-      log({ id: 'l1', sessionId: 's1', metric: 'duration', name: 'Row' }),
-      log({ id: 'l2', sessionId: 's2', metric: 'weightReps', name: 'Row' }),
+      log({ id: 'l1', sessionId: 's1', metric: 'weightReps' }),
+      log({ id: 'l2', sessionId: 's2', name: 'Plank', metric: 'duration' }),
     ]
     const sets = [
-      set({ id: 'set1', exerciseLogId: 'l1', durationSec: 60 }),
-      set({ id: 'set2', exerciseLogId: 'l2', weightKg: 50, reps: 5 }),
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 5 }),
+      set({ id: 'set2', exerciseLogId: 'l2', durationSec: 60 }),
     ]
-    const [entry] = buildExerciseIndex(logs, sets, sessions)
-    expect(entry.metric).toBe('weightReps')
+    const indexed = buildProgramIndex(logs, sets, sessions).map((p) => p.name)
+    const plotted = [
+      ...buildVolumeSeriesByProgram(logs, sets, sessions),
+      ...buildDurationSeriesByProgram(logs, sets, sessions),
+    ].map((s) => s.program)
+    expect(indexed).toEqual(['Core', 'Legs'])
+    for (const program of plotted) expect(indexed).toContain(program)
+  })
+
+  it('lists a mixed-metric program once but plots it on both charts', () => {
+    const sessions = [session({ id: 's1', startedAt: 1000, name: 'Full body' })]
+    const logs = [
+      log({ id: 'l1', sessionId: 's1', metric: 'weightReps' }),
+      log({ id: 'l2', sessionId: 's1', name: 'Plank', metric: 'duration' }),
+    ]
+    const sets = [
+      set({ id: 'set1', exerciseLogId: 'l1', weightKg: 50, reps: 5 }),
+      set({ id: 'set2', exerciseLogId: 'l2', durationSec: 60 }),
+    ]
+    expect(buildProgramIndex(logs, sets, sessions)).toEqual([
+      { name: 'Full body', lastTrainedAt: 1000, sessionCount: 1 },
+    ])
+    expect(buildVolumeSeriesByProgram(logs, sets, sessions)).toHaveLength(1)
+    expect(buildDurationSeriesByProgram(logs, sets, sessions)).toHaveLength(1)
+  })
+})
+
+describe('filterSeriesByRange', () => {
+  const DAY = 86_400_000
+  const now = 100 * DAY
+
+  it('drops a series whose every point falls outside the range', () => {
+    const series = [
+      { program: 'Recent', points: [{ id: 'a', at: now - 5 * DAY, value: 1 }] },
+      { program: 'Stale', points: [{ id: 'b', at: now - 200 * DAY, value: 2 }] },
+    ]
+    expect(filterSeriesByRange(series, '1m', now).map((s) => s.program)).toEqual(['Recent'])
+  })
+
+  it('trims points inside a surviving series', () => {
+    const series = [
+      {
+        program: 'Push',
+        points: [
+          { id: 'old', at: now - 200 * DAY, value: 1 },
+          { id: 'new', at: now - 2 * DAY, value: 2 },
+        ],
+      },
+    ]
+    expect(filterSeriesByRange(series, '1m', now)).toEqual([
+      { program: 'Push', points: [{ id: 'new', at: now - 2 * DAY, value: 2 }] },
+    ])
+  })
+
+  it("is a passthrough for 'all'", () => {
+    const series = [{ program: 'Push', points: [{ id: 'old', at: now - 900 * DAY, value: 1 }] }]
+    expect(filterSeriesByRange(series, 'all', now)).toEqual(series)
   })
 })
 

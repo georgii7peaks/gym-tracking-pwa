@@ -1,17 +1,11 @@
 // Domain: progress series over time for the Progress tab
-// (docs/plans/progress-total-volume.md + docs/plans/body-weight-progress.md).
+// (docs/plans/progress-by-program.md + docs/plans/body-weight-progress.md).
 // Two families of series share one point type and one range filter: training
 // totals (pure aggregation over ExerciseLog + SetEntry + WorkoutSession, one
-// point per Workout Session) and Body Weight (one point per Body Weight Entry,
-// optionally averaged into day/week buckets). Both stay canonical in kg.
+// point per Workout Session, then grouped into one series per PROGRAM — the
+// Workout Session's snapshotted name) and Body Weight (one point per Body Weight
+// Entry, optionally averaged into day/week buckets). Both stay canonical in kg.
 import type { BodyWeightEntry, ExerciseLog, Metric, SetEntry, WorkoutSession } from './types'
-
-export interface TrackedExercise {
-  name: string
-  metric: Metric
-  lastTrainedAt: number
-  sessionCount: number
-}
 
 /**
  * One plotted point. Deliberately neutral (`id`/`at` rather than
@@ -25,9 +19,25 @@ export interface ProgressPoint {
   value: number
 }
 
-export interface ProgressSeries {
-  metric: Metric
+/**
+ * One program's line on a chart. `program` is the Workout Session NAME — the
+ * snapshot Start a Session copies from the Routine Day, since no link back to
+ * the day is stored (CONTEXT.md). It is the same "session of the same type"
+ * identity prefillFromPreviousSession matches on, with the same consequences:
+ * two Routine Days sharing a name merge into one program, and renaming a day
+ * splits its history in two (the old name survives, with its data).
+ */
+export interface ProgramSeries {
+  program: string
+  /** Oldest first. */
   points: ProgressPoint[]
+}
+
+/** A trained program — one row of the Progress tab's filter list. */
+export interface TrackedProgram {
+  name: string
+  lastTrainedAt: number
+  sessionCount: number
 }
 
 export type ProgressRange = '1m' | '3m' | '6m' | 'all'
@@ -35,96 +45,27 @@ export type ProgressRange = '1m' | '3m' | '6m' | 'all'
 const RANGE_DAYS: Record<Exclude<ProgressRange, 'all'>, number> = { '1m': 30, '3m': 90, '6m': 180 }
 const DAY_MS = 86_400_000
 
-interface TrainedEntry {
-  session: WorkoutSession
-  doneSets: SetEntry[]
-}
-
-/**
- * Logs for one exercise name, resolved to a single metric via "the most
- * recently trained log wins" (mixed-metric assumption): only logs sharing
- * that log's metric are kept, each paired with its session and done sets.
- * Returns `undefined` if the exercise has no done sets at all.
- */
-function resolveTrainedEntries(
-  name: string,
-  logs: ExerciseLog[],
-  sets: SetEntry[],
-  sessions: WorkoutSession[]
-): { metric: Metric; entries: TrainedEntry[] } | undefined {
-  const sessionById = new Map(sessions.map((s) => [s.id, s]))
-  const doneSetsByLog = new Map<string, SetEntry[]>()
-  for (const set of sets) {
-    if (!set.done) continue
-    const list = doneSetsByLog.get(set.exerciseLogId)
-    if (list) list.push(set)
-    else doneSetsByLog.set(set.exerciseLogId, [set])
-  }
-
-  const candidates = logs
-    .filter((log) => log.name === name)
-    .map((log) => ({
-      log,
-      session: sessionById.get(log.sessionId),
-      doneSets: doneSetsByLog.get(log.id) ?? [],
-    }))
-    .filter(
-      (c): c is { log: ExerciseLog; session: WorkoutSession; doneSets: SetEntry[] } =>
-        c.session !== undefined && c.doneSets.length > 0
-    )
-  if (candidates.length === 0) return undefined
-
-  const latest = candidates.reduce((a, b) => (b.session.startedAt > a.session.startedAt ? b : a))
-  const metric = latest.log.metric
-  const entries = candidates
-    .filter((c) => c.log.metric === metric)
-    .map((c) => ({ session: c.session, doneSets: c.doneSets }))
-  return { metric, entries }
-}
-
-/** Distinct tracked exercises (>=1 done set), most recently trained first. */
-export function buildExerciseIndex(
-  logs: ExerciseLog[],
-  sets: SetEntry[],
-  sessions: WorkoutSession[]
-): TrackedExercise[] {
-  const names = [...new Set(logs.map((l) => l.name))]
-  const index: TrackedExercise[] = []
-  for (const name of names) {
-    const resolved = resolveTrainedEntries(name, logs, sets, sessions)
-    if (!resolved) continue
-    const sessionIds = new Set(resolved.entries.map((e) => e.session.id))
-    const lastTrainedAt = Math.max(...resolved.entries.map((e) => e.session.startedAt))
-    index.push({
-      name,
-      metric: resolved.metric,
-      lastTrainedAt,
-      sessionCount: sessionIds.size,
-    })
-  }
-  return index.sort((a, b) => b.lastTrainedAt - a.lastTrainedAt)
-}
+/** Locale-free compare — a pure domain function must not depend on a collation. */
+const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
  * One point per Workout Session: the sum of a per-set contribution over the
- * session's *done* sets whose log matches `metric` (and, when given,
- * `exerciseName`). Sessions with no matching done set contribute no point.
- * Points sorted by `startedAt` ascending. Shared by both total builders.
+ * session's *done* sets whose log matches `metric`. Sessions with no matching
+ * done set contribute no point. Points sorted by `startedAt` ascending. Shared
+ * by both total builders.
  */
-function buildTotalSeries(
+function buildTotalPoints(
   logs: ExerciseLog[],
   sets: SetEntry[],
   sessions: WorkoutSession[],
   metric: Metric,
-  exerciseName: string | undefined,
   contribution: (set: SetEntry) => number
-): ProgressSeries {
+): ProgressPoint[] {
   const sessionById = new Map(sessions.map((s) => [s.id, s]))
-  // Log id -> its session, for logs of this metric (optionally one exercise).
+  // Log id -> its session, for logs of this metric.
   const sessionByLog = new Map<string, WorkoutSession>()
   for (const log of logs) {
     if (log.metric !== metric) continue
-    if (exerciseName !== undefined && log.name !== exerciseName) continue
     const session = sessionById.get(log.sessionId)
     if (session) sessionByLog.set(log.id, session)
   }
@@ -142,34 +83,117 @@ function buildTotalSeries(
     })
   }
 
-  const points = [...bySession.values()].sort((a, b) => a.at - b.at)
-  return { metric, points }
+  return [...bySession.values()].sort((a, b) => a.at - b.at)
+}
+
+/** The most recent point of a series (its points are already oldest-first). */
+const lastAt = (s: ProgramSeries) => s.points[s.points.length - 1].at
+
+/**
+ * Split one chart's points into a series per program. Every point carries its
+ * Workout Session's id, so the session's name is the group key. Series come out
+ * most-recently-trained first (ties by name), matching buildProgramIndex — the
+ * order the colour slots are assigned in.
+ */
+function groupPointsByProgram(
+  points: ProgressPoint[],
+  sessions: WorkoutSession[]
+): ProgramSeries[] {
+  const nameById = new Map(sessions.map((s) => [s.id, s.name]))
+  const byProgram = new Map<string, ProgressPoint[]>()
+  for (const point of points) {
+    const name = nameById.get(point.id)
+    if (name === undefined) continue
+    const list = byProgram.get(name)
+    if (list) list.push(point)
+    else byProgram.set(name, [point])
+  }
+
+  // buildTotalPoints already sorted, so each group stays oldest-first.
+  return [...byProgram.entries()]
+    .map(([program, grouped]) => ({ program, points: grouped }))
+    .sort((a, b) => lastAt(b) - lastAt(a) || byName(a.program, b.program))
 }
 
 /**
  * Total training volume per session: `Σ (weightKg × reps)` over done weightReps
- * sets, in canonical kg. Optionally scoped to a single exercise `name`.
+ * sets, in canonical kg — one series per program.
  */
-export function buildVolumeSeries(
+export function buildVolumeSeriesByProgram(
   logs: ExerciseLog[],
   sets: SetEntry[],
-  sessions: WorkoutSession[],
-  exerciseName?: string
-): ProgressSeries {
-  return buildTotalSeries(logs, sets, sessions, 'weightReps', exerciseName, (s) => s.weightKg * s.reps)
+  sessions: WorkoutSession[]
+): ProgramSeries[] {
+  return groupPointsByProgram(
+    buildTotalPoints(logs, sets, sessions, 'weightReps', (s) => s.weightKg * s.reps),
+    sessions
+  )
 }
 
 /**
- * Total training duration per session: `Σ durationSec` over done duration sets.
- * Optionally scoped to a single exercise `name`.
+ * Total training duration per session: `Σ durationSec` over done duration sets —
+ * one series per program.
  */
-export function buildDurationSeries(
+export function buildDurationSeriesByProgram(
   logs: ExerciseLog[],
   sets: SetEntry[],
-  sessions: WorkoutSession[],
-  exerciseName?: string
-): ProgressSeries {
-  return buildTotalSeries(logs, sets, sessions, 'duration', exerciseName, (s) => s.durationSec)
+  sessions: WorkoutSession[]
+): ProgramSeries[] {
+  return groupPointsByProgram(
+    buildTotalPoints(logs, sets, sessions, 'duration', (s) => s.durationSec),
+    sessions
+  )
+}
+
+/**
+ * Distinct trained programs, most recently trained first (ties by name).
+ *
+ * Deliberately independent of the range chips and of the current selection: it
+ * is the ONLY source of a program's colour slot, so a colour can never move
+ * when a program drops out of the visible range.
+ *
+ * "Trained" = at least one done set, which is exactly "produces at least one
+ * plotted point": Metric is exhaustive (weightReps | duration), so every done
+ * set lands on either the Volume or the Duration chart.
+ */
+export function buildProgramIndex(
+  logs: ExerciseLog[],
+  sets: SetEntry[],
+  sessions: WorkoutSession[]
+): TrackedProgram[] {
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const sessionByLog = new Map<string, WorkoutSession>()
+  for (const log of logs) {
+    const session = sessionById.get(log.sessionId)
+    if (session) sessionByLog.set(log.id, session)
+  }
+
+  // Distinct sessions that actually recorded something.
+  const trained = new Map<string, WorkoutSession>()
+  for (const set of sets) {
+    if (!set.done) continue
+    const session = sessionByLog.get(set.exerciseLogId)
+    if (session) trained.set(session.id, session)
+  }
+
+  const byProgram = new Map<string, TrackedProgram>()
+  for (const session of trained.values()) {
+    const current = byProgram.get(session.name)
+    if (current) {
+      current.sessionCount += 1
+      current.lastTrainedAt = Math.max(current.lastTrainedAt, session.startedAt)
+    } else {
+      byProgram.set(session.name, {
+        name: session.name,
+        lastTrainedAt: session.startedAt,
+        sessionCount: 1,
+      })
+    }
+  }
+
+  return [...byProgram.values()].sort(
+    (a, b) => b.lastTrainedAt - a.lastTrainedAt || byName(a.name, b.name)
+  )
 }
 
 /** Range-chip filtering (1M/3M/6M/All); kept pure (nowMs passed in) for tests. */
@@ -181,6 +205,21 @@ export function filterByRange(
   if (range === 'all') return points
   const cutoff = nowMs - RANGE_DAYS[range] * DAY_MS
   return points.filter((p) => p.at >= cutoff)
+}
+
+/**
+ * Apply the range chips to every series, dropping any left with no points — an
+ * empty series would put a dead entry in the legend. Colour slots come from
+ * buildProgramIndex, so dropping a series here never repaints another.
+ */
+export function filterSeriesByRange(
+  series: ProgramSeries[],
+  range: ProgressRange,
+  nowMs: number
+): ProgramSeries[] {
+  return series
+    .map((s) => ({ program: s.program, points: filterByRange(s.points, range, nowMs) }))
+    .filter((s) => s.points.length > 0)
 }
 
 // ── Body weight (docs/plans/body-weight-progress.md) ─────────────────────────

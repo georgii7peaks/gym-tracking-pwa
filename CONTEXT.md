@@ -28,6 +28,7 @@ Canonical domain terms (carried over verbatim from the iOS build; UI uses friend
 - **Exercise Metric** — `weightReps` or `duration`. Set on both sides; an Exercise Log inherits it at copy time.
 - **Start a Session** — instantiates a Workout Session from a Routine Day, copying each Routine Exercise into a new Exercise Log (same order, name, metric). The only cross-aggregate operation. **No link back to the Routine Day is stored.**
 - **Previous Set** — most recent Set for a given exercise *name* in a prior Workout Session, used to pre-fill defaults. Matched by denormalised name, not by relationship (rename-safe).
+- **Program** (Progress tab) — a group of Workout Sessions sharing a `name`. Since no link back to the Routine Day exists, the Progress tab derives the program from that snapshotted name. Consequences: two Routine Days with the same name **merge** into one program; renaming a day **splits** its history in two, with the old name keeping its data; a deleted day keeps the program it already produced. See `docs/plans/progress-by-program.md`.
 
 > **Key invariant — Workout Sessions are snapshots.** Editing/reordering/deleting a Routine later
 > affects only *future* sessions, never recorded ones.

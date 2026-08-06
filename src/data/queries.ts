@@ -10,12 +10,12 @@ import type {
 } from '@/domain/types'
 import {
   buildBodyWeightSeries,
-  buildDurationSeries,
-  buildExerciseIndex,
-  buildVolumeSeries,
+  buildDurationSeriesByProgram,
+  buildProgramIndex,
+  buildVolumeSeriesByProgram,
+  type ProgramSeries,
   type ProgressPoint,
-  type ProgressSeries,
-  type TrackedExercise,
+  type TrackedProgram,
 } from '@/domain/progress'
 import { repository as repo } from './dexie-repository'
 
@@ -148,41 +148,33 @@ export async function getTrackingData(logId: string): Promise<TrackingData> {
   return { log, session, sets }
 }
 
-// ── Progress tab: total-volume + total-duration (docs/plans/progress-total-volume.md) ──
+// ── Progress tab: per-program totals (docs/plans/progress-by-program.md) ─────
 
-async function loadSetsForLogs(logs: ExerciseLog[]): Promise<SetEntry[]> {
-  const sets: SetEntry[] = []
-  for (const log of logs) sets.push(...(await repo.sets.byLog(log.id)))
-  return sets
-}
-
-/** Drives the filter Drawer: every exercise trained (>=1 done set). */
-export async function listTrackedExercises(): Promise<TrackedExercise[]> {
-  const logs = await repo.exerciseLogs.list()
-  const sessions = await repo.workoutSessions.list()
-  const sets = await loadSetsForLogs(logs)
-  return buildExerciseIndex(logs, sets, sessions)
-}
-
-export interface ProgressSeriesSet {
-  volume: ProgressSeries
-  duration: ProgressSeries
+export interface ProgramProgress {
+  /** The filter list AND the colour order: every trained program, newest first. */
+  programs: TrackedProgram[]
+  volume: ProgramSeries[]
+  duration: ProgramSeries[]
 }
 
 /**
- * Total Volume + Total Duration series for the Progress tab. Passing
- * `exerciseName` scopes both totals to a single exercise (and avoids loading
- * every set); omitting it aggregates the whole body.
+ * Everything the Progress tab's training half needs, in ONE read. The program
+ * index and both series lists are built from the same snapshot, so the index
+ * that fixes the colours can never disagree with the series it colours.
+ * Selection and range are applied in the UI over this result — switching the
+ * program filter must not re-hit IndexedDB.
  */
-export async function getProgressSeries(exerciseName?: string): Promise<ProgressSeriesSet> {
-  const allLogs = await repo.exerciseLogs.list()
-  const logs =
-    exerciseName === undefined ? allLogs : allLogs.filter((l) => l.name === exerciseName)
+export async function getProgramProgress(): Promise<ProgramProgress> {
+  const logs = await repo.exerciseLogs.list()
   const sessions = await repo.workoutSessions.list()
-  const sets = await loadSetsForLogs(logs)
+  // Every live set in one scan. Sets orphaned by a tombstoned log are ignored
+  // downstream (their log is absent from the log -> session map), so this is
+  // equivalent to the old per-log loop, minus the N+1.
+  const sets = await repo.sets.list()
   return {
-    volume: buildVolumeSeries(logs, sets, sessions, exerciseName),
-    duration: buildDurationSeries(logs, sets, sessions, exerciseName),
+    programs: buildProgramIndex(logs, sets, sessions),
+    volume: buildVolumeSeriesByProgram(logs, sets, sessions),
+    duration: buildDurationSeriesByProgram(logs, sets, sessions),
   }
 }
 

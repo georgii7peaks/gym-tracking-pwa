@@ -1,17 +1,32 @@
 // Hand-rolled SVG line chart for the Progress tab (docs/plans/progress-charts.md
-// step 4) — no charting library. Retro card shell (hard border/shadow); colors
-// read straight off the app's CSS custom properties so light/dark both work
-// with no extra logic. Mobile has no hover, so a tap/focus on a point is the
-// only way to read its exact value — the caption below the chart is that
-// readout (see the plan's "Point inspection" assumption).
+// step 4, made multi-series by docs/plans/progress-by-program.md) — no charting
+// library. Several series share ONE pair of axes; there is never a second y-axis.
+// Colors are supplied by the caller, so this component owns no palette: Body
+// Weight passes var(--primary), the per-program charts pass their slot color.
+// Retro card shell (hard border/shadow); the chrome colors read straight off the
+// app's CSS custom properties so light/dark both work with no extra logic.
+// Mobile has no hover, so a tap/focus on a point is the only way to read its
+// exact value — the caption below the chart is that readout (see the plan's
+// "Point inspection" assumption).
 import { useState, type ReactNode } from 'react'
 import type { ProgressPoint } from '@/domain/progress'
 
-interface ProgressChartProps {
+export interface ChartSeries {
+  /** Legend label AND identity key — must be unique within one chart. */
+  label: string
+  /** CSS color for the line and its markers; a `var(--…)` keeps theming free. */
+  color: string
+  /** Oldest-first points. An empty series is simply not drawn. */
   points: ProgressPoint[]
+}
+
+interface ProgressChartProps {
+  series: ChartSeries[]
   formatValue: (value: number) => string
   formatDate: (ms: number) => string
   ariaLabel: string
+  /** aria-label for the legend list (only rendered with 2+ drawn series). */
+  legendLabel?: string
   /**
    * Y-axis lower bound. `'zero'` (default) anchors the axis at 0 — right for
    * totals, where the bar height IS the quantity. `'auto'` lets the axis follow
@@ -59,25 +74,33 @@ function niceTicks(min: number, max: number, floorAtZero: boolean, count = 4): n
 }
 
 export function ProgressChart({
-  points,
+  series,
   formatValue,
   formatDate,
   ariaLabel,
+  legendLabel,
   baseline = 'zero',
   renderPointAction,
 }: ProgressChartProps) {
   // Keyed by point id, not by index: after a delete or a grouping switch an
   // index would silently highlight a DIFFERENT point, while an id that no
-  // longer exists simply resolves to "nothing selected".
+  // longer exists simply resolves to "nothing selected". Ids stay unique across
+  // series here — a training point carries its Workout Session's id, and a
+  // session belongs to exactly one program.
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  if (points.length === 0) return null
 
-  const values = points.map((p) => p.value)
+  const drawn = series.filter((s) => s.points.length > 0)
+  const allPoints = drawn.flatMap((s) => s.points)
+  if (allPoints.length === 0) return null
+
+  // ONE pair of axes spanning every series — never a second y-axis.
+  const values = allPoints.map((p) => p.value)
   const ticks = niceTicks(Math.min(...values), Math.max(...values), baseline === 'zero')
   const yMin = ticks[0]
   const yMax = ticks[ticks.length - 1]
-  const xMin = points[0].at
-  const xMax = points[points.length - 1].at
+  const times = allPoints.map((p) => p.at)
+  const xMin = Math.min(...times)
+  const xMax = Math.max(...times)
 
   const innerW = VIEW_W - PAD.left - PAD.right
   const innerH = VIEW_H - PAD.top - PAD.bottom
@@ -85,13 +108,27 @@ export function ProgressChart({
     PAD.left + (xMax === xMin ? innerW / 2 : ((ms - xMin) / (xMax - xMin)) * innerW)
   const yAt = (value: number) => PAD.top + innerH - ((value - yMin) / (yMax - yMin || 1)) * innerH
 
-  const coords = points.map((p) => ({ x: xAt(p.at), y: yAt(p.value), point: p }))
-  const linePath = coords
-    .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
-    .join(' ')
-  const dense = points.length > DENSE_THRESHOLD
-  const active = coords.find((c) => c.point.id === selectedId)
+  const plotted = drawn.map((s) => {
+    const coords = s.points.map((p) => ({ x: xAt(p.at), y: yAt(p.value), point: p }))
+    return {
+      ...s,
+      coords,
+      linePath: coords
+        .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+        .join(' '),
+    }
+  })
+
+  // Density is a property of the whole canvas, not of one line.
+  const dense = allPoints.length > DENSE_THRESHOLD
+  // One flag drives every multi-series difference (legend, caption prefix,
+  // point label prefix), so a single-series chart renders exactly as before.
+  const multi = plotted.length > 1
+  const active = plotted
+    .flatMap((s) => s.coords.map((c) => ({ ...c, label: s.label })))
+    .find((c) => c.point.id === selectedId)
   const toggle = (id: string) => setSelectedId((prev) => (prev === id ? null : id))
+  const prefix = (label: string) => (multi ? `${label} · ` : '')
 
   return (
     <div className="flex flex-col gap-2 border-2 border-border bg-card p-3 shadow-retro">
@@ -147,61 +184,87 @@ export function ProgressChart({
           </text>
         )}
 
-        {coords.length > 1 && (
-          <path
-            d={linePath}
-            fill="none"
-            style={{ stroke: 'var(--primary)' }}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-
-        {coords.map((c) => {
-          const isSelected = selectedId === c.point.id
-          const showMarker = !dense || isSelected
-          return (
-            <g key={c.point.id}>
-              {showMarker && (
-                <circle
-                  cx={c.x}
-                  cy={c.y}
-                  r={isSelected ? 6 : 4}
-                  style={{ fill: 'var(--primary)', stroke: 'var(--card)' }}
-                  strokeWidth={2}
-                />
-              )}
-              {/* Hit target is bigger than the visible marker (touch-friendly). */}
-              <circle
-                cx={c.x}
-                cy={c.y}
-                r={12}
-                fill="transparent"
-                // A transparent fill isn't "painted", so it's invisible to hit-testing
-                // under the default `pointer-events: visiblePainted` — taps would fall
-                // through to whatever's underneath. Force `all` so the full (larger
-                // than the visible marker) hit target actually receives them.
-                pointerEvents="all"
-                tabIndex={0}
-                role="button"
-                aria-label={`${formatDate(c.point.at)}: ${formatValue(c.point.value)}`}
-                onClick={() => toggle(c.point.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    toggle(c.point.id)
-                  }
-                }}
-                style={{ cursor: 'pointer', outline: 'none' }}
+        {plotted.map((s) => (
+          <g key={s.label} data-series={s.label}>
+            {s.coords.length > 1 && (
+              <path
+                d={s.linePath}
+                fill="none"
+                style={{ stroke: s.color }}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
-            </g>
-          )
-        })}
+            )}
+
+            {s.coords.map((c) => {
+              const isSelected = selectedId === c.point.id
+              // A one-point series draws no path, so hiding its marker on a dense
+              // canvas would render that series as nothing at all.
+              const showMarker = !dense || isSelected || s.coords.length === 1
+              return (
+                <g key={c.point.id}>
+                  {showMarker && (
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={isSelected ? 6 : 4}
+                      style={{ fill: s.color, stroke: 'var(--card)' }}
+                      strokeWidth={2}
+                    />
+                  )}
+                  {/* Hit target is bigger than the visible marker (touch-friendly). */}
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={12}
+                    fill="transparent"
+                    // A transparent fill isn't "painted", so it's invisible to hit-testing
+                    // under the default `pointer-events: visiblePainted` — taps would fall
+                    // through to whatever's underneath. Force `all` so the full (larger
+                    // than the visible marker) hit target actually receives them.
+                    pointerEvents="all"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${prefix(s.label)}${formatDate(c.point.at)}: ${formatValue(c.point.value)}`}
+                    onClick={() => toggle(c.point.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        toggle(c.point.id)
+                      }
+                    }}
+                    style={{ cursor: 'pointer', outline: 'none' }}
+                  />
+                </g>
+              )
+            })}
+          </g>
+        ))}
       </svg>
 
+      {/* Identity is never colour-alone: the swatch is decorative, the name is
+          real text in a text token, and the swatch's border keeps a pale slot
+          legible on the light theme's white card. */}
+      {multi && (
+        <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1" aria-label={legendLabel}>
+          {plotted.map((s) => (
+            <li key={s.label} className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-2 w-6 border border-border"
+                style={{ backgroundColor: s.color }}
+              />
+              <span className="font-mono text-xs text-muted-foreground">{s.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <p className="min-h-[1.25rem] text-center font-mono text-sm font-bold" aria-live="polite">
-        {active ? `${formatValue(active.point.value)} — ${formatDate(active.point.at)}` : ' '}
+        {active
+          ? `${prefix(active.label)}${formatValue(active.point.value)}— ${formatDate(active.point.at)}`
+          : ' '}
       </p>
       {active && renderPointAction?.(active.point)}
     </div>

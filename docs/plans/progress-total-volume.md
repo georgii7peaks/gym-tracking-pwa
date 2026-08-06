@@ -1,6 +1,9 @@
 # Plan: Total-Volume Progress tab (replaces per-exercise charts)
 
-Status: **proposed**
+Status: **superseded** by `docs/plans/progress-by-program.md` (2026-08-06) — the
+per-exercise filter described here was replaced by a per-program one, and the
+charts became multi-series. The Total Volume / Total Duration definitions below
+still hold.
 Date: 2026-07-22
 
 ## 1. Goal

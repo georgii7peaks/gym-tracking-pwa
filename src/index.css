@@ -29,6 +29,26 @@
   --success: #2f9e57;
   --warning: #f5a524;
 
+  /*
+   * Categorical series slots for the Progress tab's per-program lines
+   * (docs/plans/progress-by-program.md). Eight fixed hues in a fixed order,
+   * assigned by a program's stable index and NEVER cycled — two identically
+   * coloured lines on one chart is the one thing a categorical palette must not
+   * do. Light and dark are separately chosen steps, each validated against that
+   * mode's card surface (lightness band, chroma floor, CVD separation).
+   * On light, slots 3/4/5 fall below 3:1 on white: the legend's bordered swatch
+   * plus its text label are the required relief, so hue never carries identity
+   * alone.
+   */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
   /* Hard offset shadow colour (distinct from the border in dark) + corner radius. */
   --shadow-color: #1b1a17;
   --radius-retro: 4px;
@@ -51,6 +71,16 @@
   --destructive-foreground: #141310;
   --success: #7bd88f;
   --warning: #ffca62;
+
+  /* Same eight hues, re-stepped for the dark card surface (all clear 3:1 there). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
 
   --shadow-color: #000000;
   --radius-retro: 3px;
